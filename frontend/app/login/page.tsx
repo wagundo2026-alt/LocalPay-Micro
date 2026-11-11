@@ -1,0 +1,1 @@
+import Link from 'next/link';export default function Login(){return <main className="wrap section"><h1 style={{fontSize:32,fontWeight:700}}>Merchant login</h1><p>Account authentication will be enabled after Supabase is configured.</p><p><Link href="/register" style={{color:'#059669'}}>Create an account</Link></p></main>}
