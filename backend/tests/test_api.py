@@ -184,3 +184,16 @@ def test_public_checkout_does_not_accept_invalid_link():
     response=app.test_client().get("/api/checkout/invalid")
     # Without configured Supabase it fails closed rather than returning merchant data.
     assert response.status_code in (404,503)
+
+
+def test_payouts_are_not_public():
+    assert app.test_client().get("/api/merchant/payouts").status_code == 401
+
+
+def test_payouts_never_enabled_in_test_mode():
+    from app import app
+    client = app.test_client()
+    # Private payouts cannot be retrieved without a validated Supabase user.
+    result = client.get("/api/merchant/payouts")
+    assert result.status_code == 401
+    assert "payouts" not in str(result.json.get("data") or {})
