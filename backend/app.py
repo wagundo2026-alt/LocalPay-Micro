@@ -24,12 +24,15 @@ origins.append(r"^https://local-pay-micro(?:-[a-z0-9-]+)?\\.vercel\\.app$")
 CORS(app, resources={r"/api/*": {"origins": origins}}, supports_credentials=False,
      allow_headers=["Authorization", "Content-Type"], methods=["GET", "POST", "PATCH", "OPTIONS"])
 URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+EXPECTED_SUPABASE_URL = "https://uvjvkutpdwdvwwafhvon.supabase.co"
 KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 DB = None
 JWKS = None
 
 def get_db():
     global DB
+    if URL and URL != EXPECTED_SUPABASE_URL:
+        raise RuntimeError("SUPABASE_URL on Render points to another Supabase project. Use the LocalPay project URL.")
     if not URL or not KEY or "YOUR_" in URL or "YOUR_" in KEY:
         return None
     if DB is None:
@@ -101,6 +104,8 @@ def database_health():
     """Safely check server-side Supabase connectivity without exposing credentials."""
     if not URL or not KEY or "YOUR_" in URL or "YOUR_" in KEY:
         return reply(status=503, error="Render is missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+    if URL != EXPECTED_SUPABASE_URL:
+        return reply(status=503, error="Render SUPABASE_URL points to the wrong Supabase project. Use the project uvjvkutpdwdvwwafhvon URL.")
     try:
         db = get_db()
         db.table("merchants").select("id").limit(1).execute()
@@ -115,6 +120,11 @@ def unexpected_error(exc):
     if isinstance(exc, HTTPException):
         return reply(status=exc.code or 500, error=exc.description if (exc.code or 500) < 500 else "Backend request failed")
     app.logger.exception("Unhandled error while processing %s %s", request.method, request.path)
+    code = getattr(exc, "code", None)
+    if code == "PGRST205" or "PGRST205" in str(exc):
+        return reply(status=503, error="Supabase REST cannot see the merchants table (PGRST205). Verify Render SUPABASE_URL matches the LocalPay project and check public schema exposure.")
+    if isinstance(exc, RuntimeError) and "another Supabase project" in str(exc):
+        return reply(status=503, error="Render SUPABASE_URL points to another project. Set it to the LocalPay Supabase project URL.")
     return reply(status=500, error="Backend encountered a server error. Check Render Logs for the exception at this request time.")
 
 @app.post("/api/merchant/onboard")
