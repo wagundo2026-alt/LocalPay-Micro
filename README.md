@@ -11,7 +11,7 @@ Designed specifically for informal traders, small restaurants and takeaways, loc
 - Fixed-amount payment links, shareable WhatsApp URLs and scan-to-pay QR codes
 - Paystack sandbox **hosted checkout**, signed webhook and server-side transaction verification
 - Printable test receipts and CSV transaction report
-- Sales analytics, business settings and a proposed single R29/month subscription (billing disabled)
+- Sales analytics, business settings and a proposed single R49/month subscription (billing disabled)
 - Restricted platform admin area with server-verified roles
 
 **No live money, merchant settlement, production subscriptions or marketplace transfers are supported.**
