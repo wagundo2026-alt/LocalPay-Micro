@@ -73,6 +73,16 @@ def requires_merchant(fn):
         return fn(*args, **kwargs)
     return inner
 
+@app.get("/")
+def index():
+    return reply({
+        "service": "LocalPay Micro API",
+        "status": "online",
+        "message": "This is the backend API, not the merchant website.",
+        "health_url": "/api/health",
+        "mode": "DEMO"
+    })
+
 @app.get("/api/health")
 def health():
     return reply({"status": "ok", "mode": "DEMO", "database_configured": bool(URL and KEY)})
