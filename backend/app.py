@@ -158,36 +158,62 @@ def dashboard_bootstrap():
         origin = ""
     payload = {"merchant": merchant, "view": view, "checkout_origin": origin}
 
-    if view in {"overview", "payments", "qr-code"}:
-        payload["links"] = (db.table("payment_links").select("*")
-                            .eq("merchant_id", mid).order("created_at", desc=True)
-                            .limit(500).execute().data)
+    # Independent reads can run concurrently. Previously the overview waited for
+    # links, transaction list and sales aggregation one after the other.
+    # Keep payment and sales reads fresh: never cache financial statuses.
+    from concurrent.futures import ThreadPoolExecutor
 
-    if view in {"overview", "transactions"}:
-        records = (db.table("transactions")
-            .select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email", count="exact")
-            .eq("merchant_id", mid).order("created_at",desc=True).limit(100).execute())
-        payload["transactions"] = records.data
-        payload["transaction_count"] = int(records.count or 0)
+    def read_links():
+        return (db.table("payment_links")
+                .select("id,token,amount_cents,description,active,created_at,expires_at,consumed_at")
+                .eq("merchant_id", mid).order("created_at", desc=True)
+                .limit(500).execute().data)
 
-    if view in {"overview", "analytics"}:
-        entries = (db.table("transactions")
-                   .select("amount_cents,status,created_at")
-                   .eq("merchant_id",mid).execute().data)
-        paid = [item for item in entries if item["status"]=="successful"]
-        payload["summary"] = {
-            "gross_cents": sum(int(item["amount_cents"]) for item in paid),
-            "successful_count": len(paid),
-            "pending_count": sum(item["status"]=="pending" for item in entries),
-            "mode": "DEMO"
-        }
-        daily = defaultdict(lambda: {"total_cents":0,"count":0})
-        for item in paid:
-            day = item["created_at"][:10]
-            daily[day]["total_cents"] += int(item["amount_cents"])
-            daily[day]["count"] += 1
-        payload["analytics"] = {"daily":[{"date":day,**entry}
-                                          for day,entry in sorted(daily.items())],"mode":"DEMO"}
+    def read_transactions():
+        result = (db.table("transactions")
+                  .select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email", count="exact")
+                  .eq("merchant_id", mid).order("created_at", desc=True)
+                  .limit(100).execute())
+        return result.data, int(result.count or 0)
+
+    def read_sales():
+        # This query deliberately keeps the full merchant history to prevent
+        # displaying an incorrect total when a merchant exceeds 100 sales.
+        return (db.table("transactions")
+                .select("amount_cents,status,created_at")
+                .eq("merchant_id", mid).execute().data)
+
+    wants_links = view in {"overview", "payments", "qr-code"}
+    wants_transactions = view in {"overview", "transactions"}
+    wants_sales = view in {"overview", "analytics"}
+
+    if wants_links or wants_transactions or wants_sales:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            links_job = pool.submit(read_links) if wants_links else None
+            transactions_job = pool.submit(read_transactions) if wants_transactions else None
+            sales_job = pool.submit(read_sales) if wants_sales else None
+            if links_job:
+                payload["links"] = links_job.result()
+            if transactions_job:
+                payload["transactions"], payload["transaction_count"] = transactions_job.result()
+            if sales_job:
+                entries = sales_job.result()
+                paid = [item for item in entries if item["status"] == "successful"]
+                payload["summary"] = {
+                    "gross_cents": sum(int(item["amount_cents"]) for item in paid),
+                    "successful_count": len(paid),
+                    "pending_count": sum(item["status"] == "pending" for item in entries),
+                    "mode": "DEMO"
+                }
+                daily = defaultdict(lambda: {"total_cents": 0, "count": 0})
+                for item in paid:
+                    day = item["created_at"][:10]
+                    daily[day]["total_cents"] += int(item["amount_cents"])
+                    daily[day]["count"] += 1
+                payload["analytics"] = {
+                    "daily": [{"date": day, **entry} for day, entry in sorted(daily.items())],
+                    "mode": "DEMO"
+                }
 
     if view == "subscription":
         key = merchant_plan(db,mid)
