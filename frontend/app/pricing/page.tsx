@@ -1,44 +1,33 @@
 import Link from 'next/link';
-import { ArrowRight, Check, ShieldCheck, Store, UtensilsCrossed, ShoppingBasket, QrCode, ReceiptText } from 'lucide-react';
-const features=[
- 'Create payment links for any sale',
- 'Display QR codes at your counter or stall',
- 'Check verified test transactions',
- 'See daily sales and payment history',
- 'Download transaction reports',
- 'Manage your shop from a phone'
+import { ArrowRight, Check, ShieldCheck, Store, UtensilsCrossed, ShoppingBasket, ReceiptText } from 'lucide-react';
+
+const plans=[
+ {name:'Basic',price:'R49',limit:'200',audience:'For a small stall or part-time trader',features:['200 checkout attempts per month','QR codes and payment links','Transaction history','Simple sales dashboard']},
+ {name:'Pro',price:'R99',limit:'1,000',audience:'For a busy spaza shop or takeaway',features:['1,000 checkout attempts per month','Everything in Basic','Downloadable sales reports','Sales insights'],featured:true},
+ {name:'Pro Plus',price:'R199',limit:'5,000',audience:'For a high-volume shop or restaurant',features:['5,000 checkout attempts per month','Everything in Pro','Room for busier daily trading','Priority support (planned)']}
 ];
 export default function Pricing(){
  return <main className="lp-pricing-page">
   <section className="lp-pricing-hero">
-   <div className="lp-eyebrow">ONE SIMPLE SUBSCRIPTION · BUILT FOR LOCAL BUSINESS</div>
-   <h1>Affordable payment tools for <span>your everyday hustle.</span></h1>
-   <p>Whether you run a spaza shop, sell meals at a food stall, manage a small restaurant or own a local food shop, LocalPay keeps payments simple.</p>
+   <div className="lp-eyebrow">PREDICTABLE COSTS FOR EVERY KIND OF LOCAL BUSINESS</div>
+   <h1>Start small. <span>Upgrade as you grow.</span></h1>
+   <p>Built for informal traders, spaza shops, food stores and small restaurants. Pay for the level of monthly checkout capacity that suits your business.</p>
   </section>
-  <div className="lp-pricing-grid lp-subscription-grid">
-   <article className="lp-card lp-pricing-card lp-pricing-featured">
-    <span className="lp-chip">PROPOSED MONTHLY SUBSCRIPTION</span>
-    <h2>LocalPay Subscription</h2>
-    <p>Everything a small local business needs, in one easy-to-understand package.</p>
-    <div className="lp-pricing-cost">R49<span>/month · proposed</span></div>
-    <p>Built for traders who need to keep costs predictable. Provider transaction fees are additional and will be disclosed before any live launch.</p>
-    <Link href="/register" className="lp-primary lp-full">Create your test account <ArrowRight size={18}/></Link>
-    <div className="lp-pricing-list">{features.map(feature=><div key={feature}><Check size={17}/>{feature}</div>)}</div>
-   </article>
-   <aside className="lp-card lp-subscription-story">
-    <span className="lp-eyebrow">MADE FOR THE BUSINESSES AROUND US</span>
-    <h2>One subscription. Many ways to earn.</h2>
-    <div className="lp-subscription-type"><Store size={20}/><div><strong>Spaza shops</strong><span>Let customers scan a QR code at the till.</span></div></div>
-    <div className="lp-subscription-type"><UtensilsCrossed size={20}/><div><strong>Small restaurants & takeaways</strong><span>Share payment links for meals and orders.</span></div></div>
-    <div className="lp-subscription-type"><ShoppingBasket size={20}/><div><strong>Local food shops & informal traders</strong><span>Keep payment records without complicated systems.</span></div></div>
-    <div className="lp-subscription-type"><ReceiptText size={20}/><div><strong>Market stalls & street-food sellers</strong><span>Show a QR code from a phone or printed sign.</span></div></div>
-   </aside>
+  <div className="lp-pricing-grid lp-tier-grid">
+   {plans.map(p=><article key={p.name} className={'lp-card lp-pricing-card '+(p.featured?'lp-pricing-featured':'')}>
+    <span className="lp-chip">{p.featured?'FOR GROWING BUSINESSES':'PROPOSED SUBSCRIPTION'}</span>
+    <h2>{p.name}</h2><p>{p.audience}</p>
+    <div className="lp-pricing-cost">{p.price}<span>/month</span></div>
+    <div className="lp-tier-limit"><strong>{p.limit}</strong><span>Paystack checkout attempts / month</span></div>
+    <Link className={'lp-primary lp-full '+(!p.featured?'lp-pricing-alt':'')} href="/register">{p.name==='Basic'?'Start with Basic':'Create a test account'} <ArrowRight size={17}/></Link>
+    <div className="lp-pricing-list">{p.features.map(feature=><div key={feature}><Check size={17}/>{feature}</div>)}</div>
+   </article>)}
   </div>
-  <div className="lp-pricing-note"><ShieldCheck size={20}/><p><strong>Hackathon test mode:</strong> The R49/month subscription is a proposed business model, not a charge being collected today. Subscription billing and live card payments are not enabled. Creating a test account does not start a paid subscription.</p></div>
-  <section className="lp-pricing-faq"><div className="lp-eyebrow">STRAIGHT ANSWERS</div><h2>Questions from local traders</h2>
-   <article><strong>Will I be charged R49 when I sign up?</strong><p>No. This is a sandbox prototype. R49/month is the proposed price for a future live subscription, not an active charge.</p></article>
-   <article><strong>Do I need a card machine?</strong><p>No. LocalPay demonstrates QR and payment-link checkouts that can be shared or displayed using a phone.</p></article>
-   <article><strong>Are payment-provider fees included?</strong><p>No. Any future live provider processing fees would be additional and shown clearly before launch.</p></article>
+  <div className="lp-pricing-note"><ShieldCheck size={20}/><p><strong>Important:</strong> These are proposed software subscription prices. Billing is not live, so new merchants currently use the Basic sandbox limit. Upgrade requests are recorded but do not activate higher limits or charge money. The monthly limits count initiated Paystack checkout sessions (including abandoned or failed attempts), reset at 00:00 UTC on the first day of each month, and are enforced by the backend. Creating payment links and QR codes does not use the transaction quota. Payment-provider processing fees are separate.</p></div>
+  <section className="lp-pricing-faq"><div className="lp-eyebrow">MADE FOR LOCAL TRADE</div><h2>Find the right fit</h2>
+   <article><strong>What if I reach my limit?</strong><p>Existing links stay available, but no new checkout session can begin until the next monthly reset or a higher plan is activated. Request an upgrade from your dashboard.</p></article>
+   <article><strong>Will clicking upgrade charge my card?</strong><p>No. Billing is not connected yet. The button submits a request for future activation, rather than pretending a payment succeeded.</p></article>
+   <article><strong>Are card processing fees included?</strong><p>No. The approved payment provider's per-transaction fees are separate from LocalPay's software subscription.</p></article>
   </section>
  </main>;
 }
