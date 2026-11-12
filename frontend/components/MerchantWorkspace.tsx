@@ -134,6 +134,37 @@ export default function MerchantWorkspace({view}: {view:View}){
   }catch(e){setError(e instanceof Error?e.message:'Download failed.');}
   finally{setPending(false);}
  }
+ async function downloadQr(link:PaymentLink){
+  try{
+   const element=document.getElementById('localpay-qr-svg');
+   if(!(element instanceof SVGSVGElement))throw new Error('QR code is not ready. Please try again.');
+   const cloned=element.cloneNode(true) as SVGSVGElement;
+   cloned.setAttribute('xmlns','http://www.w3.org/2000/svg');
+   cloned.setAttribute('width','600');cloned.setAttribute('height','600');
+   const xml=new XMLSerializer().serializeToString(cloned);
+   const blob=new Blob([xml],{type:'image/svg+xml;charset=utf-8'});
+   const url=URL.createObjectURL(blob);
+   const image=new Image();
+   image.onload=()=>{
+    const canvas=document.createElement('canvas');canvas.width=720;canvas.height=860;
+    const context=canvas.getContext('2d');
+    if(!context){URL.revokeObjectURL(url);setError('Unable to generate image on this browser.');return;}
+    context.fillStyle='#ffffff';context.fillRect(0,0,720,860);
+    context.drawImage(image,60,55,600,600);
+    context.fillStyle='#123b3d';context.textAlign='center';
+    context.font='bold 35px Arial, sans-serif';context.fillText(money(link.amount_cents),360,725);
+    context.font='24px Arial, sans-serif';context.fillText((merchant?.business_name||'LocalPay merchant').slice(0,32),360,775);
+    context.font='16px Arial, sans-serif';context.fillStyle='#64748b';context.fillText('LOCALPAY MICRO · PAYSTACK TEST MODE',360,815);
+    const anchor=document.createElement('a');
+    anchor.href=canvas.toDataURL('image/png');
+    anchor.download='localpay-qr-'+link.token.slice(0,8)+'.png';
+    anchor.click();URL.revokeObjectURL(url);
+    setSuccess('QR code downloaded. Ready to display or print.');
+   };
+   image.onerror=()=>{URL.revokeObjectURL(url);setError('Could not generate QR image. Please try again.');};
+   image.src=url;
+  }catch(e){setError(e instanceof Error?e.message:'QR download failed.');}
+ }
  async function copy(value:string){try{await navigator.clipboard.writeText(value);setSuccess('Copied! Your link is ready to share.');}catch{setError('Copy is unavailable. Please select the link manually.');}}
  async function logout(){await getSupabaseBrowser().auth.signOut();router.replace('/login');router.refresh();}
  const paid=transactions.filter(t=>t.status==='successful');
@@ -188,7 +219,36 @@ export default function MerchantWorkspace({view}: {view:View}){
     {(view==='payments'||view==='qr-code')&&<>
       {view==='payments'&&<div className="lp-columns lp-payment-columns"><section className="lp-card"><div className="lp-card-head"><div><h2>Create a new payment request</h2><p>Simple as setting a price and sharing the link.</p></div><span className="lp-chip">NO CARD MACHINE</span></div><form className="lp-form" onSubmit={createLink}><label htmlFor="lp-amount">Amount (ZAR)</label><div className="lp-amount-field"><span>R</span><input id="lp-amount" type="number" step="0.01" min="1" max="100000" required value={amount} onChange={e=>setAmount(e.target.value)} placeholder="20.00"/></div><label htmlFor="lp-desc">What is this payment for?</label><input id="lp-desc" value={description} maxLength={180} onChange={e=>setDescription(e.target.value)} placeholder="e.g. Haircut, lunch or groceries"/><p className="lp-field-hint">Customers will see this description at checkout.</p><button className="lp-primary lp-full" disabled={pending} type="submit"><Plus size={18}/>{pending?'Creating link...':'Create payment link'}</button></form></section><section className="lp-card lp-info-card"><div className="lp-info-graphic"><Link2 size={42}/></div><h2>Get paid without the awkward follow-ups.</h2><p>A customer can open your link on their phone, pay using the provider’s secure test checkout, and you can see the verified status right here.</p><div className="lp-info-foot"><ShieldCheck size={18}/> We only show payments as complete after server-side verification.</div></section></div>}
       {lastLink&&view==='payments'&&<section className="lp-card lp-new-link"><div><span className="lp-chip">JUST CREATED</span><h2>Your payment link is ready!</h2><p>{money(lastLink.amount_cents)} · {lastLink.description}</p></div><div className="lp-share-line"><input readOnly value={shareUrl(lastLink)} aria-label="New payment link"/><button className="lp-secondary" onClick={()=>copy(shareUrl(lastLink))}><Copy size={16}/> Copy</button><a className="lp-secondary" target="_blank" rel="noreferrer" href={'https://wa.me/?text='+encodeURIComponent('You can pay me here: '+shareUrl(lastLink))}>WhatsApp <ExternalLink size={15}/></a></div></section>}
-      {view==='qr-code'&&<section className="lp-card lp-qr-card"><div><h2>A QR code for every payment link.</h2><p>Choose a payment link, then let your customer scan. You can print the code or show it on your phone.</p><label htmlFor="lp-select-qr" className="lp-qr-label">Select a payment request</label><select id="lp-select-qr" className="lp-select" value={selected?.id||''} onChange={e=>setQrSelected(e.target.value)}>{links.map(l=><option key={l.id} value={l.id}>{l.description} · {money(l.amount_cents)}</option>)}</select>{selected&&<div className="lp-qr-actions"><button className="lp-secondary" onClick={()=>copy(shareUrl(selected))}><Copy size={16}/> Copy link</button><button className="lp-secondary" onClick={()=>window.print()}><Download size={16}/> Print QR</button></div>}</div>{selected?<div className="lp-qr-paper"><QRCodeSVG value={shareUrl(selected)} size={230} includeMargin level="M"/><strong>{money(selected.amount_cents)}</strong><span>{displayName}</span><small>PAYSTACK TEST CHECKOUT</small></div>:<Empty icon={QrCode} title="No QR codes just yet" description="Create your first payment link and your QR will appear here."/>}</section>}
+      {view==='qr-code'&&<>
+       <div className="lp-columns lp-payment-columns">
+        <section className="lp-card">
+         <div className="lp-card-head"><div><h2>Create a QR payment request</h2><p>Set the amount, then share your QR with customers.</p></div><span className="lp-chip">FREE TO CREATE</span></div>
+         <form className="lp-form" onSubmit={createLink}>
+          <label htmlFor="lp-qr-amount">Amount (ZAR)</label>
+          <div className="lp-amount-field"><span>R</span><input id="lp-qr-amount" required type="number" min="1" max="100000" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
+          <label htmlFor="lp-qr-description">What is the customer paying for?</label>
+          <input id="lp-qr-description" maxLength={180} placeholder="e.g. Lunch special, haircut or groceries" value={description} onChange={e=>setDescription(e.target.value)}/>
+          <button className="lp-primary lp-full" type="submit" disabled={pending}><QrCode size={18}/>{pending?'Creating QR...':'Generate my QR code'}</button>
+         </form>
+        </section>
+        <section className="lp-card lp-qr-card lp-qr-preview">
+         <div><h2>Ready to scan</h2><p>Choose any saved payment request to display its QR code, or create a new one using the form.</p>
+         {links.length>0&&<><label htmlFor="lp-select-qr" className="lp-qr-label">Payment request</label>
+         <select id="lp-select-qr" className="lp-select" value={selected?.id||''} onChange={e=>setQrSelected(e.target.value)}>
+          {links.filter(link=>link.active).map(link=><option key={link.id} value={link.id}>{link.description} · {money(link.amount_cents)}</option>)}
+         </select></>}
+         {selected&&<div className="lp-qr-actions">
+          <button className="lp-secondary" type="button" onClick={()=>copy(shareUrl(selected))}><Copy size={16}/> Copy link</button>
+          <button className="lp-secondary" type="button" onClick={()=>downloadQr(selected)}><Download size={16}/> Download PNG</button>
+          <a href={shareUrl(selected)} target="_blank" rel="noopener noreferrer" className="lp-secondary"><ExternalLink size={16}/> Test checkout</a>
+         </div>}</div>
+         {selected&&selected.active?
+          <div className="lp-qr-paper"><QRCodeSVG id="localpay-qr-svg" value={shareUrl(selected)} size={230} includeMargin level="H"/><strong>{money(selected.amount_cents)}</strong><span>{displayName}</span><small>PAYSTACK TEST CHECKOUT</small></div>
+          :<Empty icon={QrCode} title="Your first QR is one click away" description="Enter an amount and select Generate my QR code to begin."/>}
+        </section>
+       </div>
+       {selected&&<div className="lp-tip lp-wide-tip"><ShieldCheck size={18}/> QR codes open the LocalPay checkout page. They do not confirm payment: only a successful Paystack server verification does that. This is test mode and no real money moves.</div>}
+      </>}
       {view==='payments'&&<section className="lp-card"><div className="lp-card-head"><div><h2>Your payment links</h2><p>All your requests in one place</p></div><span className="lp-muted">{links.length} links</span></div>{links.length?<div className="lp-link-list">{links.map(l=><div className="lp-link-row" key={l.id}><div className="lp-link-icon"><Link2 size={19}/></div><div className="lp-link-info"><strong>{l.description}</strong><span>Created {date(l.created_at)}</span></div><strong>{money(l.amount_cents)}</strong><button className="lp-icon-btn" title="Copy payment URL" onClick={()=>copy(shareUrl(l))}><Copy size={17}/></button><a className="lp-icon-btn" href={shareUrl(l)} target="_blank" rel="noreferrer" title="Open checkout"><ExternalLink size={17}/></a></div>)}</div>:<Empty icon={Link2} title="No payment links yet" description="Create your first payment request above — it takes just a moment."/>}</section>}
     </>}
     {view==='transactions'&&<section className="lp-card"><div className="lp-card-head"><div><h2>Payment history</h2><p>Showing verified and pending test transactions</p></div><button className="lp-secondary" onClick={exportCsv} disabled={pending}><Download size={16}/> Download CSV</button></div><div className="lp-table-toolbar"><div className="lp-search"><Search size={17}/><input aria-label="Search transactions" placeholder="Search reference or provider" value={query} onChange={e=>setQuery(e.target.value)}/></div><select className="lp-select lp-filter" aria-label="Filter transaction status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="successful">Successful</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="refunded">Refunded</option></select></div><TransactionTable transactions={filtered}/></section>}
