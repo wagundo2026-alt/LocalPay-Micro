@@ -26,7 +26,7 @@ def test_root_returns_api_info():
 def test_private_routes_require_auth():
     client = app.test_client()
     for route in ("/api/merchant/me", "/api/payment-links", "/api/transactions",
-                  "/api/dashboard/summary", "/api/dashboard/analytics"):
+                  "/api/dashboard/summary", "/api/dashboard/analytics", "/api/dashboard/bootstrap"):
         assert client.get(route).status_code == 401
 
 
@@ -109,3 +109,9 @@ def test_plan_mutations_require_auth():
     client = app.test_client()
     assert client.get("/api/merchant/plan").status_code == 401
     assert client.post("/api/merchant/upgrade-request", json={"plan":"pro_plus"}).status_code == 401
+
+
+def test_bootstrap_is_private_and_unknown_view_is_rejected_before_data_load():
+    client = app.test_client()
+    assert client.get("/api/dashboard/bootstrap?view=overview").status_code == 401
+    assert client.get("/api/dashboard/bootstrap?view=subscription").status_code == 401
