@@ -317,15 +317,16 @@ def merchant_update():
 # Proposed merchant plans. Limits count Paystack checkout attempts per UTC calendar month.
 # Plan upgrades are never activated from an unverified browser request.
 PLANS = {
-    "basic": {"name": "Basic", "price_cents": 4900, "monthly_limit": 200},
+    "starter": {"name": "Starter", "price_cents": 0, "monthly_limit": 200},
+    "basic": {"name": "Basic", "price_cents": 4900, "monthly_limit": 500},
     "pro": {"name": "Pro", "price_cents": 9900, "monthly_limit": 1000},
     "pro_plus": {"name": "Pro Plus", "price_cents": 19900, "monthly_limit": 5000}
 }
 
 def merchant_plan(db, merchant_id):
     rows = db.table("merchant_plan_entitlements").select("plan").eq("merchant_id", merchant_id).limit(1).execute().data
-    plan = rows[0]["plan"] if rows else "basic"
-    return plan if plan in PLANS else "basic"
+    plan = rows[0]["plan"] if rows else "starter"
+    return plan if plan in PLANS else "starter"
 
 def month_window_utc():
     now = datetime.now(timezone.utc)
@@ -363,8 +364,8 @@ def request_plan_upgrade():
     body = request.get_json(silent=True) or {}
     requested = body.get("plan")
     current = merchant_plan(get_db(), request.merchant["id"])
-    ranks = {"basic":0,"pro":1,"pro_plus":2}
-    if requested not in ("pro","pro_plus") or ranks[requested] <= ranks[current]:
+    ranks = {"starter":0,"basic":1,"pro":2,"pro_plus":3}
+    if requested not in ("basic","pro","pro_plus") or ranks[requested] <= ranks[current]:
         return reply(status=400, error="Choose a higher plan than your current plan.")
     db = get_db()
     existing = (db.table("plan_upgrade_requests").select("requested_plan")
