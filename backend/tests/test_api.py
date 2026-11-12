@@ -76,3 +76,23 @@ def test_live_key_rejected(monkeypatch):
         assert False, "Live key should not be accepted"
     except PaystackError:
         pass
+
+
+def test_cors_allows_localpay_vercel_preview():
+    response = app.test_client().options(
+        "/api/merchant/me",
+        headers={
+            "Origin": "https://local-pay-micro-ok0e4wu82-low-cost.vercel.app",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    assert response.headers.get("Access-Control-Allow-Origin") == "https://local-pay-micro-ok0e4wu82-low-cost.vercel.app"
+
+
+def test_cors_blocks_unrelated_website():
+    response = app.test_client().options(
+        "/api/merchant/me",
+        headers={"Origin": "https://unrelated.example", "Access-Control-Request-Method": "GET"},
+    )
+    assert not response.headers.get("Access-Control-Allow-Origin")
