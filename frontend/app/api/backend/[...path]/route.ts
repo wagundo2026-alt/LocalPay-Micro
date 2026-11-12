@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 const FALLBACK_RENDER_API = 'https://localpay-micro1.onrender.com';
 
 function renderOrigin(): string {
-  const configured = process.env.RENDER_API_URL || process.env.NEXT_PUBLIC_API_URL || FALLBACK_RENDER_API;
+  const configured = process.env.RENDER_API_URL || FALLBACK_RENDER_API;
   const url = new URL(configured);
   if (url.protocol !== 'https:' && !(process.env.NODE_ENV === 'development' && url.hostname === 'localhost')) {
     throw new Error('The Render backend URL must use HTTPS.');
