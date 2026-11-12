@@ -38,7 +38,7 @@ async function callApi<T>(path:string,token:string,options?:RequestInit):Promise
  try {
   res=await fetch(API+path,{...options,headers:{'Authorization':'Bearer '+token,...(options?.body?{'Content-Type':'application/json'}:{}),...options?.headers},cache:'no-store'});
  } catch {
-  throw new Error('Cannot connect to LocalPay’s backend. Check that Render is Live and the Vercel NEXT_PUBLIC_API_URL points to https://localpay-micro1.onrender.com. If Render is live, check its FRONTEND_ORIGINS/CORS setting.');
+  throw new Error('Cannot connect to LocalPay right now. The Render service may be starting or unavailable. Try again shortly or check the Connection Check page.');
  }
  const data:ApiResult<T>=await res.json().catch(()=>({data:null,error:'The server did not return a valid response.'}));
  if(!res.ok)throw new Error(data.error || 'Unable to load. Please try again.');
@@ -68,34 +68,43 @@ export default function MerchantWorkspace({view}: {view:View}){
  const shareUrl=(link:PaymentLink)=>typeof window==='undefined'?'':window.location.origin+'/pay/'+link.token;
  const navigate=(slug:View)=>slug==='overview'?'/dashboard':'/dashboard/'+slug;
  async function refresh(accessToken:string){
-  const [m,s,l,t,a,p]=await Promise.all([
-   callApi<Merchant>('/api/merchant/me',accessToken),
-   callApi<Summary>('/api/dashboard/summary',accessToken),
-   callApi<PaymentLink[]>('/api/payment-links',accessToken),
-   callApi<Transaction[]>('/api/transactions',accessToken),
-   callApi<{daily:ChartDay[]}>('/api/dashboard/analytics',accessToken),
-   callApi<PlanInfo>('/api/merchant/plan',accessToken),
-  ]);
-  setPlanInfo(p);
-  setMerchant(m);setProfile({business_name:m.business_name,category:m.category||'',province:m.province||'',town:m.town||''});
-  setSummary(s);setLinks(l);setTransactions(t);setChart(a.daily||[]);
+  type WorkspaceData={
+   merchant:Merchant;
+   summary?:Summary;
+   links?:PaymentLink[];
+   transactions?:Transaction[];
+   analytics?:{daily:ChartDay[]};
+   plan?:PlanInfo;
+  };
+  // One request per page; the server authenticates once and loads only the data
+  // needed for the active view. No stale caching of payment or sales status.
+  const data=await callApi<WorkspaceData>('/api/dashboard/bootstrap?view='+encodeURIComponent(view),accessToken);
+  const m=data.merchant;
+  setMerchant(m);
+  setProfile({business_name:m.business_name,category:m.category||'',province:m.province||'',town:m.town||''});
+  if(data.summary)setSummary(data.summary);
+  if(data.links)setLinks(data.links);
+  if(data.transactions)setTransactions(data.transactions);
+  if(data.analytics)setChart(data.analytics.daily||[]);
+  if(data.plan)setPlanInfo(data.plan);
  }
  useEffect(()=>{
   let active=true;
   async function boot(){
    try{
     const supabase=getSupabaseBrowser();
-    const {data:{user},error:userError}=await supabase.auth.getUser();
-    if(userError || !user){router.replace('/login');return;}
-    const {data:{session}}=await supabase.auth.getSession();
-    if(!session){router.replace('/login');return;}
+    // getSession reuses the local session instead of making an extra auth
+    // network round-trip. Flask verifies the access token server-side.
+    const {data:{session},error:sessionError}=await supabase.auth.getSession();
+    if(sessionError || !session?.access_token){router.replace('/login');return;}
     if(!active)return;
     setToken(session.access_token);
     await refresh(session.access_token);
    }catch(e){
     if(!active)return;
     const message=e instanceof Error?e.message:'Unable to load dashboard.';
-    if(message.includes('Complete merchant onboarding') || message.includes('404')){router.replace('/onboarding');return;}
+    if(message.includes('Complete merchant onboarding')){router.replace('/onboarding');return;}
+    if(message.includes('Invalid or expired session') || message.includes('Authentication required')){router.replace('/login');return;}
     setError(message);
    }finally{if(active)setLoading(false);}
   }
