@@ -16,7 +16,12 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient(url,key,{
     cookies:{
       getAll(){return cookieStore.getAll()},
-      setAll(list){for (const cookie of list) {cookieStore.set(cookie.name,cookie.value,cookie.options);response.cookies.set(cookie.name,cookie.value,cookie.options)}}
+      setAll(list: { name: string; value: string; options?: Parameters<typeof response.cookies.set>[2] }[]) {
+        for (const cookie of list) {
+          cookieStore.set(cookie.name, cookie.value, cookie.options);
+          response.cookies.set(cookie.name, cookie.value, cookie.options);
+        }
+      }
     }
   });
   const { error } = await supabase.auth.exchangeCodeForSession(code);
