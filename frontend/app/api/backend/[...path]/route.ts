@@ -54,10 +54,18 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     const mediaType = response.headers.get('content-type') || '';
     const allowedType = mediaType.includes('text/csv') ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8';
     if (!mediaType.includes('application/json') && !mediaType.includes('text/csv')) {
-      return NextResponse.json({
-        data: null,
-        error: 'The backend returned an unexpected response. Check Render deployment status.',
-      }, { status: 502 });
+      // Never forward untrusted Render HTML to the browser. Report only the status
+      // and a helpful explanation, with no secrets or upstream page contents.
+      const error = response.status === 404
+        ? 'Render returned HTTP 404: this backend API route was not found. Deploy the latest GitHub commit to the correct Render Web Service, with Root Directory set to backend.'
+        : response.status === 502 || response.status === 503 || response.status === 504
+          ? 'Render returned HTTP ' + response.status + ': the backend is unavailable. Check Render service status and deploy logs.'
+          : response.status === 401 || response.status === 403
+            ? 'Render returned HTTP ' + response.status + ': an upstream access restriction is blocking this API request.'
+            : 'Render returned HTTP ' + response.status + ' instead of a JSON API response. Confirm the backend URL and deployment logs.';
+      return NextResponse.json({ data: null, error }, {
+        status: 502, headers: { 'Cache-Control': 'no-store' }
+      });
     }
     return new NextResponse(await response.arrayBuffer(), {
       status: response.status,
