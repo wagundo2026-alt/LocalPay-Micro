@@ -100,3 +100,16 @@
 .lp-subscription-dashboard .lp-plan-features{padding-bottom:8px}
 .lp-subscription-dashboard .lp-secondary{margin-top:22px}
 @media(max-width:800px){.lp-subscription-grid{grid-template-columns:1fr}.lp-subscription-story,.lp-subscription-dashboard{padding:24px}}
+
+/* Tiered subscription and merchant quota components */
+.lp-tier-grid{max-width:1200px;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+.lp-tier-grid .lp-pricing-card{display:flex;flex-direction:column}
+.lp-tier-grid .lp-pricing-list{margin-top:22px}
+.lp-tier-limit{display:flex;flex-direction:column;gap:4px;border-radius:12px;background:rgba(5,150,105,.07);padding:15px 18px;margin:12px 0 20px;color:#087e66}
+.lp-tier-limit strong{font-size:27px;line-height:1.1;letter-spacing:-.04em}
+.lp-tier-limit span{font-size:12px;color:#5d8278;font-weight:600}
+.lp-quota-track{overflow:hidden;width:100%;height:12px;background:#e8f0ed;border-radius:10px;margin:12px 0 8px}
+.lp-quota-track>div{height:100%;background:#10b981;min-width:0;border-radius:10px;transition:width .25s}
+.lp-plan-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lp-plan .lp-plan-price{word-break:keep-all}
+@media(max-width:920px){.lp-tier-grid,.lp-plan-grid{grid-template-columns:1fr;max-width:640px}.lp-tier-grid .lp-pricing-card{min-height:auto}}
