@@ -71,11 +71,6 @@ export default function MerchantWorkspace({view}: {view:View}){
  // A payment URL must use a dedicated public production domain. Preview
  // deployment hosts are often protected by Vercel Authentication.
  const shareUrl=(link:PaymentLink)=>checkoutOrigin?checkoutOrigin+'/pay/'+encodeURIComponent(link.token):'';
- const requireCheckoutUrl=(link:PaymentLink)=>{
-  const url=shareUrl(link);
-  if(!url)throw new Error('Public checkout domain is not configured. Ask the administrator to set FRONTEND_URL on Render to the public production Vercel domain. Do not share a protected preview URL.');
-  return url;
- };
  const navigate=(slug:View)=>slug==='overview'?'/dashboard':'/dashboard/'+slug;
  async function refresh(accessToken:string){
   type WorkspaceData={
