@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';import {useSearchParams} from 'next/navigation';import Link from 'next/link';import {CheckCircle2,Clock3,ShieldCheck} from 'lucide-react';
+import {useEffect,useState,Suspense} from 'react';import {useSearchParams} from 'next/navigation';import Link from 'next/link';import {CheckCircle2,Clock3,ShieldCheck} from 'lucide-react';
 const API=(process.env.NEXT_PUBLIC_API_URL||'').replace(/\/$/,'');
 function Result(){const params=useSearchParams();const ref=params.get('reference')||'';const [status,setStatus]=useState('checking');const [error,setError]=useState('');
  useEffect(()=>{if(!/^LPM-[a-f0-9]{32}$/.test(ref)){setStatus('error');setError('Invalid payment reference.');return;}
@@ -10,4 +10,4 @@ function Result(){const params=useSearchParams();const ref=params.get('reference
  const paid=status==='successful';
  return <main className="lp-pay-page"><div className="lp-pay-container"><section className="lp-card lp-pay-box lp-result"><div className={'lp-result-icon '+(paid?'lp-confirmed':'')} >{paid?<CheckCircle2 size={36}/>:<Clock3 size={36}/>}</div><h1>{paid?'Test payment verified!':status==='error'?'We couldn’t verify the payment yet.':'We’re checking your payment.'}</h1><p>{paid?'Paystack has confirmed this test transaction with our server.':status==='error'?error:'This can take a moment. Don’t rely on your bank screen or payment screenshot.'}</p><p className="lp-reference">{ref}</p>{paid?<Link href={'/receipt/'+encodeURIComponent(ref)} className="lp-primary lp-full">View test receipt</Link>:<button className="lp-primary lp-full" onClick={()=>window.location.reload()}>Check again</button>}<p className="lp-safe-small"><ShieldCheck size={15}/> Test environment — no real funds were processed.</p></section></div></main>;
 }
-export default function PaymentSuccess(){return <div><Result/></div>}
+export default function PaymentSuccess(){return <Suspense fallback={<main className="lp-pay-page">Checking your test payment...</main>}><Result/></Suspense>;}
