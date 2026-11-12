@@ -13,14 +13,16 @@ from paystack import PaystackError, initialize as paystack_initialize, reconcile
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-import jwt
-from jwt import PyJWKClient
 from supabase import create_client
 
 app = Flask(__name__)
 limiter = Limiter(get_remote_address, app=app, default_limits=[])
-origins = [x.strip() for x in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
-CORS(app, origins=origins, supports_credentials=False)
+# Accept explicitly configured origins plus LocalPay's own Vercel preview deployments.
+# API is Bearer-token authenticated, never cookie-credentialed cross-origin.
+origins = [x.strip().rstrip("/") for x in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
+origins.append(r"^https://local-pay-micro(?:-[a-z0-9-]+)?\\.vercel\\.app$")
+CORS(app, resources={r"/api/*": {"origins": origins}}, supports_credentials=False,
+     allow_headers=["Authorization", "Content-Type"], methods=["GET", "POST", "PATCH", "OPTIONS"])
 URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 DB = None
@@ -45,17 +47,19 @@ def requires_user(fn):
             return reply(status=401, error="Authentication required")
         try:
             token = header[7:].strip()
-            global JWKS
-            if JWKS is None:
-                JWKS = PyJWKClient(URL + "/auth/v1/.well-known/jwks.json")
-            key = JWKS.get_signing_key_from_jwt(token)
-            claims = jwt.decode(
-                token, key.key, algorithms=["RS256", "ES256"],
-                audience="authenticated", issuer=URL + "/auth/v1"
-            )
-            request.user_id = claims["sub"]
+            if not token:
+                return reply(status=401, error="Authentication required")
+            db = get_db()
+            if db is None:
+                return reply(status=503, error="Supabase is not configured")
+            # Supabase Auth validates both legacy HS256 and current asymmetric tokens.
+            response = db.auth.get_user(token)
+            user = response.user
+            if user is None or not user.id:
+                return reply(status=401, error="Invalid authentication session")
+            request.user_id = user.id
         except Exception:
-            return reply(status=401, error="Invalid authentication session")
+            return reply(status=401, error="Invalid or expired session. Please sign in again.")
         return fn(*args, **kwargs)
     return inner
 
