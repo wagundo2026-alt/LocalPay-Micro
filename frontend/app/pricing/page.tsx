@@ -29,6 +29,16 @@ export default function Pricing(){
    <h2 id="processing-title">Subscription and payment-processing costs are different.</h2>
    <p>Starter has no compulsory monthly subscription. Payment providers charge a separate fee when an actual payment is processed. We aim to prioritise lower-cost bank/EFT options where available, subject to provider and merchant eligibility.</p>
    <p>Our proposed introductory promotion would let eligible merchants pay 1% for successful payments during their first three months, with LocalPay covering the difference <strong>only within a disclosed monthly subsidy cap</strong>. The proposed cap is R30 per merchant per month. Once the cap is used or the promotion ends, the provider’s disclosed standard charges apply. The promotion is not active and cannot yet be applied to real payments.</p>
+   <div className="lp-table-wrap">
+    <table className="lp-table"><thead><tr><th>R20 EFT example</th><th>Amount</th></tr></thead>
+     <tbody>
+      <tr><td>Merchant fee during proposed 1% promotion</td><td>R0.20</td></tr>
+      <tr><td>Standard Paystack EFT processing cost (2% before VAT)</td><td>R0.40</td></tr>
+      <tr><td>Proposed LocalPay subsidy (before VAT)</td><td>R0.20</td></tr>
+     </tbody>
+    </table>
+   </div>
+   <p className="lp-field-hint">This is an illustration, not a live fee deduction. Provider fees may attract 15% VAT, so the actual subsidy including VAT could be higher. Never infer a completed payment from a screenshot.</p>
    <p className="lp-field-hint">Illustrative published Paystack South Africa prices are 2% for supported EFT and 2.9% + R1 for local cards, excluding VAT. Actual method availability and charges depend on provider terms. No live merchant settlement or subsidy reimbursement is enabled.</p>
   </section>
   <div className="lp-pricing-note"><ShieldCheck size={20}/><p><strong>Paystack TEST mode:</strong> No real money moves. New merchants receive the Starter sandbox tier with a limit of 200 initiated checkouts per month. Paid subscriptions are proposed; no money is collected for upgrades. Upgrade requests must be approved and activated by an authorised operator. QR/link generation does not use checkout attempts. No 1% promotional subsidy is operational.</p></div>
