@@ -151,7 +151,12 @@ def dashboard_bootstrap():
     db = get_db()
     merchant = request.merchant
     mid = merchant["id"]
-    payload = {"merchant": merchant, "view": view}
+    # Share public checkout links on the stable, explicitly configured
+    # production domain, never on a protected Vercel preview hostname.
+    origin = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+    if not (origin.startswith("https://") and "/" not in origin.removeprefix("https://")):
+        origin = ""
+    payload = {"merchant": merchant, "view": view, "checkout_origin": origin}
 
     if view in {"overview", "payments", "qr-code"}:
         payload["links"] = (db.table("payment_links").select("*")
