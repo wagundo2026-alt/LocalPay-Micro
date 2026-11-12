@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, type FormEvent } from 'react';
 import { ArrowRight, Check, ShieldCheck, Store } from 'lucide-react';
 import { getSupabaseBrowser } from '../../lib/supabase-browser';
-const API=(process.env.NEXT_PUBLIC_API_URL||'').replace(/\/$/,'');
+const API='/api/backend';
 const provinces=['Limpopo','Gauteng','Mpumalanga','North West','Free State','KwaZulu-Natal','Eastern Cape','Western Cape','Northern Cape'];
 export default function Onboarding(){
  const router=useRouter();const [name,setName]=useState('');const [category,setCategory]=useState('Spaza shop');const [province,setProvince]=useState('Limpopo');const [town,setTown]=useState('');const [token,setToken]=useState('');const [pending,setPending]=useState(false);const [message,setMessage]=useState('');
