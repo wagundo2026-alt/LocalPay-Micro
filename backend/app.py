@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from functools import wraps
 
 from flask import Flask, request, jsonify, Response
+from paystack import PaystackError, initialize as paystack_initialize, reconcile as paystack_reconcile, authentic_webhook
 from flask_cors import CORS
 import jwt
 from jwt import PyJWKClient
@@ -156,23 +157,41 @@ def checkout(token):
 
 @app.post("/api/payments/initialize")
 def initialize_payment():
-    # Demo initialization only. Never present this as Paystack checkout.
+    """Initialize sandbox payment using a server-trusted payment link and Paystack checkout."""
     db = get_db()
-    if not db:
+    if db is None:
         return reply(status=503, error="Supabase is not configured")
-    token = str((request.get_json(silent=True) or {}).get("token") or "")
+    if os.getenv("PAYMENT_PROVIDER", "paystack") != "paystack":
+        return reply(status=503, error="Only Paystack test checkout is available")
+    body = request.get_json(silent=True) or {}
+    token = str(body.get("token") or "")
+    email = str(body.get("email") or "").strip()
+    if len(email) > 254 or "@" not in email or "." not in email.split("@")[-1]:
+        return reply(status=400, error="Please enter a valid customer email to continue")
     rows = db.table("payment_links").select("*").eq("token", token).eq("active", True).limit(1).execute().data
     if not rows:
-        return reply(status=404, error="Invalid payment link")
+        return reply(status=404, error="Payment link is no longer available")
     link = rows[0]
+    if link["merchant_id"] != os.getenv("PAYSTACK_TEST_MERCHANT_ID", ""):
+        return reply(status=403, error="This merchant is not enabled for Paystack sandbox checkout yet")
+    secret = os.getenv("PAYSTACK_SECRET_KEY", "")
+    if not secret.startswith("sk_test_"):
+        return reply(status=503, error="Paystack TEST mode is not configured")
+    origin = os.getenv("FRONTEND_URL", "").rstrip("/")
+    if not origin.startswith("https://") or "/" in origin.removeprefix("https://"):
+        return reply(status=503, error="Configure FRONTEND_URL with your Vercel HTTPS origin")
     reference = "LPM-" + uuid.uuid4().hex
     db.table("transactions").insert({
         "merchant_id": link["merchant_id"], "payment_link_id": link["id"],
-        "reference": reference, "amount_cents": link["amount_cents"],
-        "status": "pending", "provider": "demo"
+        "reference": reference, "amount_cents": int(link["amount_cents"]),
+        "status": "pending", "provider": "paystack"
     }).execute()
-    return reply({"reference": reference, "mode": "DEMO",
-                  "message": "Test request created. No real payment has occurred."}, 201)
+    try:
+        redirect = paystack_initialize(reference, int(link["amount_cents"]), email,
+                                       origin + "/payment/success?reference=" + reference)
+    except PaystackError as exc:
+        return reply(status=502, error=str(exc))
+    return reply({"reference": reference, "checkout_url": redirect, "mode": "PAYSTACK_TEST"}, 201)
 
 @app.post("/api/payments/demo-complete")
 def demo_complete():
@@ -197,10 +216,20 @@ def demo_complete():
 @app.get("/api/payments/verify/<reference>")
 def payment_verify(reference):
     db = get_db()
-    if not db:
+    if db is None:
         return reply(status=503, error="Supabase is not configured")
-    rows = db.table("transactions").select("reference,status,amount_cents,provider").eq("reference", reference).limit(1).execute().data
-    return reply(rows[0]) if rows else reply(status=404, error="Unknown reference")
+    rows = db.table("transactions").select("*").eq("reference", reference).limit(1).execute().data
+    if not rows:
+        return reply(status=404, error="Unknown reference")
+    tx = rows[0]
+    if tx["provider"] == "paystack" and tx["status"] == "pending":
+        try:
+            tx = paystack_reconcile(db, reference)
+        except PaystackError:
+            # Unavailable verification never changes payment to successful.
+            pass
+    return reply({"reference": reference, "status": tx["status"],
+                  "amount_cents": tx["amount_cents"], "provider": tx["provider"]})
 
 @app.get("/api/transactions")
 @requires_merchant
@@ -274,8 +303,34 @@ def subscriptions():
 
 @app.post("/api/webhooks/payments")
 def webhook():
-    # Fail closed until Paystack's authenticated webhook/verification flow is installed.
-    return reply(status=501, error="Paystack webhook verification not implemented")
+    """Authenticate raw bytes first, then verify Paystack directly before crediting."""
+    if not os.getenv("PAYSTACK_SECRET_KEY", "").startswith("sk_test_"):
+        return reply(status=503, error="Paystack TEST mode is not configured")
+    raw = request.get_data(cache=True)
+    if len(raw) > 128 * 1024:
+        return reply(status=413, error="Webhook is too large")
+    try:
+        authentic = authentic_webhook(request.headers, raw)
+    except PaystackError:
+        authentic = False
+    if not authentic:
+        return reply(status=401, error="Invalid webhook signature")
+    body = request.get_json(silent=True) or {}
+    if body.get("event") != "charge.success":
+        return reply({"received": True})
+    data = body.get("data") or {}
+    reference = data.get("reference")
+    if not isinstance(reference, str):
+        return reply(status=400, error="Missing payment reference")
+    db = get_db()
+    if db is None:
+        return reply(status=503, error="Supabase is not configured")
+    try:
+        paystack_reconcile(db, reference)
+    except PaystackError:
+        # Retryable failure for provider delivery; never mark paid on failure.
+        return reply(status=503, error="Payment verification unavailable")
+    return reply({"received": True})
 
 @app.get("/api/admin/summary")
 @requires_user
