@@ -127,6 +127,72 @@ def unexpected_error(exc):
         return reply(status=503, error="Render SUPABASE_URL points to another project. Set it to the LocalPay Supabase project URL.")
     return reply(status=500, error="Backend encountered a server error. Check Render Logs for the exception at this request time.")
 
+@app.get("/api/dashboard/bootstrap")
+@requires_merchant
+@limiter.limit("90 per minute")
+def dashboard_bootstrap():
+    """One authenticated request per workspace page instead of six parallel requests.
+
+    Only query the tables needed by the requested view. All money figures are
+    calculated from server-side, verified transaction status; never cached.
+    """
+    view = request.args.get("view", "overview")
+    allowed = {"overview", "payments", "qr-code", "transactions", "analytics", "subscription", "settings"}
+    if view not in allowed:
+        return reply(status=400, error="Unknown workspace view")
+    db = get_db()
+    merchant = request.merchant
+    mid = merchant["id"]
+    payload = {"merchant": merchant, "view": view}
+
+    if view in {"overview", "payments", "qr-code"}:
+        payload["links"] = (db.table("payment_links").select("*")
+                            .eq("merchant_id", mid).order("created_at", desc=True)
+                            .limit(500).execute().data)
+
+    if view in {"overview", "transactions"}:
+        payload["transactions"] = (db.table("transactions")
+            .select("id,reference,amount_cents,status,provider,created_at")
+            .eq("merchant_id", mid).order("created_at",desc=True).limit(100).execute().data)
+
+    if view in {"overview", "analytics"}:
+        entries = (db.table("transactions")
+                   .select("amount_cents,status,created_at")
+                   .eq("merchant_id",mid).execute().data)
+        paid = [item for item in entries if item["status"]=="successful"]
+        payload["summary"] = {
+            "gross_cents": sum(int(item["amount_cents"]) for item in paid),
+            "successful_count": len(paid),
+            "pending_count": sum(item["status"]=="pending" for item in entries),
+            "mode": "DEMO"
+        }
+        daily = defaultdict(lambda: {"total_cents":0,"count":0})
+        for item in paid:
+            day = item["created_at"][:10]
+            daily[day]["total_cents"] += int(item["amount_cents"])
+            daily[day]["count"] += 1
+        payload["analytics"] = {"daily":[{"date":day,**entry}
+                                          for day,entry in sorted(daily.items())],"mode":"DEMO"}
+
+    if view == "subscription":
+        key = merchant_plan(db,mid)
+        start,end = month_window_utc()
+        result = (db.table("transactions").select("id",count="exact")
+                  .eq("merchant_id",mid).gte("created_at",start)
+                  .lt("created_at",end).limit(1).execute())
+        used = int(result.count or 0)
+        pending = (db.table("plan_upgrade_requests")
+                   .select("requested_plan,created_at")
+                   .eq("merchant_id",mid).eq("status","pending").limit(1).execute().data)
+        payload["plan"] = {
+            "plan":key,"name":PLANS[key]["name"],"price_cents":PLANS[key]["price_cents"],
+            "monthly_limit":PLANS[key]["monthly_limit"],"used":used,
+            "remaining":max(0,PLANS[key]["monthly_limit"]-used),
+            "next_reset":end,"upgrade_request":pending[0] if pending else None,
+            "billing_enabled":False,"mode":"PAYSTACK_TEST"
+        }
+    return reply(payload)
+
 @app.post("/api/merchant/onboard")
 @requires_user
 def onboard():
