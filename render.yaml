@@ -13,7 +13,17 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: FRONTEND_URL
+        sync: false
       - key: FRONTEND_ORIGINS
+        sync: false
+      - key: PAYMENT_PROVIDER
+        value: paystack
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: PAYSTACK_TEST_MERCHANT_ID
         sync: false
       - key: ENABLE_DEMO_PAYMENTS
         value: 'false'
