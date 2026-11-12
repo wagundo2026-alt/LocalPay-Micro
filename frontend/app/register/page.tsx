@@ -1,1 +1,2 @@
-import Link from 'next/link';export default function Register(){return <main className="wrap section"><h1 style={{fontSize:32,fontWeight:700}}>Create your LocalPay account</h1><p>Registration requires the Supabase backend and authentication configuration. The full starter source includes the functional registration implementation.</p><Link href="/" style={{color:'#059669'}}>Back to home</Link></main>}
+import AuthPanel from '../../components/AuthPanel';
+export default function RegisterPage(){return <AuthPanel mode="register"/>;}
