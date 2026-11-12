@@ -4,6 +4,32 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const FALLBACK_RENDER_API = 'https://localpay-micro1.onrender.com';
+// Expose only intentional browser API routes. Webhooks, internal demo mutation
+// endpoints and any future admin/debug routes must never be proxied by default.
+const PUBLIC_READ = [
+  /^api\/health$/, /^api\/health\/database$/,
+  /^api\/checkout\/[A-Za-z0-9_-]{1,120}$/,
+  /^api\/payments\/verify\/LPM-[a-f0-9]{32}$/,
+  /^api\/receipts\/LPM-[a-f0-9]{32}$/,
+];
+const PRIVATE_READ = [
+  /^api\/merchant\/me$/, /^api\/merchant\/plan$/,
+  /^api\/payment-links$/, /^api\/transactions$/, /^api\/transactions\/export\.csv$/,
+  /^api\/dashboard\/(bootstrap|summary|analytics)$/,
+  /^api\/subscriptions$/, /^api\/admin\/(summary|merchants|transactions)$/,
+];
+const PRIVATE_WRITE = [
+  /^api\/merchant\/(onboard|upgrade-request)$/, /^api\/payment-links$/,
+  /^api\/merchant\/me$/,
+];
+const PUBLIC_WRITE = [/^api\/payments\/initialize$/];
+function permittedApiPath(path: string, method: string, hasAuth: boolean) {
+  const routes=method==='GET'?PUBLIC_READ:method==='POST'?PUBLIC_WRITE:[];
+  if(routes.some(re=>re.test(path)))return true;
+  const privateRoutes=method==='GET'?PRIVATE_READ:method==='POST'||method==='PATCH'?PRIVATE_WRITE:[];
+  return hasAuth&&privateRoutes.some(re=>re.test(path));
+}
+
 
 function renderOrigin(): string {
   const configured = process.env.RENDER_API_URL || FALLBACK_RENDER_API;
@@ -21,6 +47,11 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       path.some(item => !/^[a-zA-Z0-9._-]{1,120}$/.test(item) || item === '..')) {
     return NextResponse.json({ data: null, error: 'Unsupported API path.' }, { status: 404 });
   }
+  const pathKey=path.join('/');
+  const auth=request.headers.get('authorization');
+  if(!permittedApiPath(pathKey,request.method,Boolean(auth?.startsWith('Bearer ')))) {
+    return NextResponse.json({data:null,error:'This API route is not available.'},{status:404,headers:{'Cache-Control':'no-store'}});
+  }
   const targetPath = '/' + path.map(encodeURIComponent).join('/');
   const search = request.nextUrl.search;
   let endpoint: string;
@@ -28,7 +59,6 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   catch { return NextResponse.json({ data: null, error: 'The backend API URL is not configured correctly.' }, { status: 503 }); }
 
   const headers = new Headers();
-  const auth = request.headers.get('authorization');
   if (auth?.startsWith('Bearer ') && auth.length < 9000) headers.set('Authorization', auth);
   if (request.headers.get('content-type')?.startsWith('application/json')) {
     headers.set('Content-Type', 'application/json');
