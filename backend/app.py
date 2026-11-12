@@ -332,14 +332,44 @@ def webhook():
         return reply(status=503, error="Payment verification unavailable")
     return reply({"received": True})
 
+def require_platform_admin():
+    db = get_db()
+    if db is None:
+        return False
+    rows = db.table("platform_admins").select("user_id").eq("user_id", request.user_id).limit(1).execute().data
+    return bool(rows)
+
+
 @app.get("/api/admin/summary")
 @requires_user
 def admin_summary():
+    if not require_platform_admin():
+        return reply(status=403, error="Administrator access required")
     db = get_db()
-    if not db:
-        return reply(status=503, error="Supabase is not configured")
-    rows = db.table("platform_admins").select("user_id").eq("user_id", request.user_id).limit(1).execute().data
-    return reply({"message": "Admin authenticated", "mode": "DEMO"}) if rows else reply(status=403, error="Admin access required")
+    merchants = db.table("merchants").select("id").execute().data
+    paid = db.table("transactions").select("amount_cents,status").eq("status", "successful").execute().data
+    return reply({"merchants": len(merchants),
+                  "verified_test_transactions": len(paid),
+                  "test_payment_volume_cents": sum(int(x["amount_cents"]) for x in paid),
+                  "mode": "DEMO", "platform_revenue_cents": 0})
+
+
+@app.get("/api/admin/merchants")
+@requires_user
+def admin_merchants():
+    if not require_platform_admin():
+        return reply(status=403, error="Administrator access required")
+    rows = get_db().table("merchants").select("id,business_name,category,province,town,created_at").limit(200).execute().data
+    return reply(rows)
+
+
+@app.get("/api/admin/transactions")
+@requires_user
+def admin_transactions():
+    if not require_platform_admin():
+        return reply(status=403, error="Administrator access required")
+    rows = get_db().table("transactions").select("reference,merchant_id,amount_cents,status,provider,created_at").order("created_at", desc=True).limit(200).execute().data
+    return reply(rows)
 
 if __name__ == "__main__":
     app.run(port=5000, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
