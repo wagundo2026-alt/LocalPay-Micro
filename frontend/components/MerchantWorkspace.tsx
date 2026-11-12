@@ -29,7 +29,7 @@ type PayoutInfo = {
  verified_test_sales_cents:number;verified_test_sales_count:number;
  payouts:PayoutRecord[];notice:string;
 };
-type PlanInfo = {plan:'basic'|'pro'|'pro_plus';name:string;price_cents:number;monthly_limit:number;used:number;remaining:number;next_reset:string;upgrade_request:{requested_plan:string;created_at:string}|null;billing_enabled:boolean};
+type PlanInfo = {plan:'starter'|'basic'|'pro'|'pro_plus';name:string;price_cents:number;monthly_limit:number;used:number;remaining:number;next_reset:string;upgrade_request:{requested_plan:string;created_at:string}|null;billing_enabled:boolean};
 type ApiResult<T> = {data:T|null;error:string|null};
 const API='/api/backend';
 const money=(cents:number)=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(cents/100);
@@ -174,7 +174,7 @@ export default function MerchantWorkspace({view}: {view:View}){
   }catch(e){setError(e instanceof Error?e.message:'Could not disable the payment link.');}
   finally{setPending(false);}
  }
- async function requestUpgrade(plan:'pro'|'pro_plus'){
+ async function requestUpgrade(plan:'basic'|'pro'|'pro_plus'){
   if(!token || pending)return;
   setPending(true);setError('');setSuccess('');
   try{
@@ -368,8 +368,8 @@ export default function MerchantWorkspace({view}: {view:View}){
     {view==='subscription'&&<>
      <section className="lp-card lp-subscription-dashboard">
       <div className="lp-eyebrow">YOUR MONTHLY CHECKOUT ALLOWANCE</div>
-      <h2>{planInfo?.name||'Basic'} plan <span className="lp-chip">TEST MODE</span></h2>
-      <p className="lp-plan-price">{money(planInfo?.price_cents||4900)}<small>/month · proposed</small></p>
+      <h2>{planInfo?.name||'Starter'} plan <span className="lp-chip">TEST MODE</span></h2>
+      <p className="lp-plan-price">{money(planInfo?.price_cents??0)}<small>/month · proposed</small></p>
       <p><strong>{planInfo?.used??0} of {planInfo?.monthly_limit??200}</strong> Paystack checkout attempts used this month · <strong>{planInfo?.remaining??200} remaining</strong></p>
       <div className="lp-quota-track" role="progressbar" aria-label="Monthly checkout allowance used" aria-valuenow={planInfo?.used??0} aria-valuemin={0} aria-valuemax={planInfo?.monthly_limit??200}><div style={{width:((planInfo?.used??0)/(planInfo?.monthly_limit||200)*100)+'%'}}/></div>
       <p className="lp-field-hint">Limits reset at 00:00 UTC on the first day of each month (next reset: {planInfo?.next_reset?new Date(planInfo.next_reset).toLocaleDateString('en-ZA'):'next month'}). Failed and abandoned checkout attempts count. Generating a QR or link does not consume an attempt.</p>
@@ -378,7 +378,8 @@ export default function MerchantWorkspace({view}: {view:View}){
      </section>
      <div className="lp-plan-grid">
       {([
-       {key:'basic' as const,name:'Basic',price:4900,limit:200,subtitle:'For small stalls and start-up traders',features:['Payment links and QR codes','Basic dashboard and sales records']},
+       {key:'starter' as const,name:'Starter',price:0,limit:200,subtitle:'No monthly subscription for micro-businesses',features:['Payment links and QR codes','Essential payment records']},
+       {key:'basic' as const,name:'Basic',price:4900,limit:500,subtitle:'Optional insights and more checkouts',features:['Everything in Starter','Sales dashboard and simple reports']}, 
        {key:'pro' as const,name:'Pro',price:9900,limit:1000,subtitle:'For busy spaza shops and takeaways',features:['Everything in Basic','Downloadable reports and insights']},
        {key:'pro_plus' as const,name:'Pro Plus',price:19900,limit:5000,subtitle:'For higher-volume shops and restaurants',features:['Everything in Pro','More monthly checkout capacity']}
       ]).map(p=><article key={p.key} className={'lp-card lp-plan '+(planInfo?.plan===p.key?'lp-plan-active':'')}>
@@ -388,13 +389,13 @@ export default function MerchantWorkspace({view}: {view:View}){
         <p>{p.subtitle}</p>
         <div className="lp-plan-features">{p.features.map(f=><div key={f}><Check size={16}/>{f}</div>)}</div>
         {planInfo?.plan===p.key?<button type="button" className="lp-primary lp-full" disabled>Current plan</button>:
-          p.key!=='basic'&&(!planInfo || (p.key==='pro'&&planInfo.plan==='pro_plus')||planInfo.upgrade_request)?
+          p.key!=='starter'&&(!planInfo || (p.key==='basic'&&planInfo.plan!=='starter')||(p.key==='pro'&&planInfo.plan==='pro_plus')||planInfo.upgrade_request)?
             <button type="button" className="lp-primary lp-full" disabled>{planInfo?.upgrade_request?'Upgrade request pending':'Not available'}</button>:
-          p.key==='basic'?<button type="button" className="lp-primary lp-full" disabled>Lower plan</button>:
-          <button type="button" className="lp-primary lp-full" disabled={pending} onClick={()=>requestUpgrade(p.key as 'pro'|'pro_plus')}>{pending?'Requesting…':'Request upgrade'} <ArrowRight size={16}/></button>}
+          p.key==='starter'?<button type="button" className="lp-primary lp-full" disabled>Free Starter</button>:
+          <button type="button" className="lp-primary lp-full" disabled={pending} onClick={()=>requestUpgrade(p.key as 'basic'|'pro'|'pro_plus')}>{pending?'Requesting…':'Request upgrade'} <ArrowRight size={16}/></button>}
        </article>)}
      </div>
-     <div className="lp-tip lp-wide-tip"><ShieldCheck size={18}/> All plans are proposed and remain in Paystack sandbox mode. No subscription fee is collected. We also propose capping the merchant processing fee at 1% per successful transaction, with LocalPay subsidising the remainder. This 1% policy is NOT active: provider fees are not reimbursed and real settlement is disabled until approved.</div>
+     <div className="lp-tip lp-wide-tip"><ShieldCheck size={18}/> Starter is R0/month. Basic, Pro and Pro Plus are optional proposed upgrades; no subscription fee is currently collected. A capped 1% introductory merchant fee for the first three months is proposed only for an approved future pilot, not active in Paystack sandbox. Normal provider fees would apply outside the promotion. No real settlement or fee reimbursement is enabled.</div>
     </>}
     {view==='settings'&&<section className="lp-card lp-settings-card"><div className="lp-card-head"><div><h2>Your business details</h2><p>This is the name your customers will recognize on checkout.</p></div><Store size={23} color="#059669"/></div><form className="lp-form" onSubmit={saveProfile}><label htmlFor="setting-business">Business name</label><input id="setting-business" required minLength={2} maxLength={100} value={profile.business_name} onChange={e=>setProfile(p=>({...p,business_name:e.target.value}))}/><label htmlFor="setting-category">Business category</label><input id="setting-category" value={profile.category} maxLength={80} onChange={e=>setProfile(p=>({...p,category:e.target.value}))} placeholder="e.g. Spaza shop, Salon"/><div className="lp-two-fields"><div><label htmlFor="setting-town">Town / Area</label><input id="setting-town" value={profile.town} maxLength={80} onChange={e=>setProfile(p=>({...p,town:e.target.value}))}/></div><div><label htmlFor="setting-province">Province</label><input id="setting-province" value={profile.province} maxLength={80} onChange={e=>setProfile(p=>({...p,province:e.target.value}))}/></div></div><label>Merchant ID (read-only)</label><input value={merchant?.id||''} readOnly/><button className="lp-primary" disabled={pending} type="submit"><Check size={18}/>{pending?'Saving...':'Save business details'}</button></form></section>}
     <p className="lp-bottom-note"><ShieldCheck size={15}/> LocalPay Micro is currently running in sandbox mode. Do not accept real payments until your payment provider approves the merchant flow.</p>
