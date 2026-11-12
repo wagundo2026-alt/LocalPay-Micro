@@ -4,7 +4,7 @@ import {useEffect,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {ShieldCheck,Store,CreditCard,Wallet,ArrowRight} from 'lucide-react';
 import {getSupabaseBrowser} from '../../lib/supabase-browser';
-const API=(process.env.NEXT_PUBLIC_API_URL||'').replace(/\/$/,'');
+const API='/api/backend';
 type Summary={merchants:number;verified_test_transactions:number;test_payment_volume_cents:number;mode:string;platform_revenue_cents:number};
 export default function Admin(){
  const router=useRouter();const [data,setData]=useState<Summary|null>(null);const [message,setMessage]=useState('Checking your permissions...');const [tab,setTab]=useState<'summary'|'merchants'|'transactions'>('summary');const [rows,setRows]=useState<Record<string,unknown>[]>([]);const [token,setToken]=useState('');
