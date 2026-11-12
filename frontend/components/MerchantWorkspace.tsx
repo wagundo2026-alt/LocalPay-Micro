@@ -19,7 +19,7 @@ type Transaction = { id:string; reference:string; amount_cents:number; status:st
 type Summary = {gross_cents:number;successful_count:number;pending_count:number};
 type ChartDay = {date:string;total_cents:number;count:number};
 type ApiResult<T> = {data:T|null;error:string|null};
-const API = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+const API='/api/backend';
 const money=(cents:number)=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(cents/100);
 const date=(s:string)=>new Date(s).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'});
 const menu: {slug:View;label:string;icon:typeof LayoutDashboard}[]=[
