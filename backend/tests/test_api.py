@@ -96,3 +96,16 @@ def test_cors_blocks_unrelated_website():
         headers={"Origin": "https://unrelated.example", "Access-Control-Request-Method": "GET"},
     )
     assert not response.headers.get("Access-Control-Allow-Origin")
+
+
+def test_pricing_matches_enforced_quotas():
+    from app import PLANS
+    assert PLANS["basic"] == {"name": "Basic", "price_cents": 4900, "monthly_limit": 200}
+    assert PLANS["pro"] == {"name": "Pro", "price_cents": 9900, "monthly_limit": 1000}
+    assert PLANS["pro_plus"] == {"name": "Pro Plus", "price_cents": 19900, "monthly_limit": 5000}
+
+
+def test_plan_mutations_require_auth():
+    client = app.test_client()
+    assert client.get("/api/merchant/plan").status_code == 401
+    assert client.post("/api/merchant/upgrade-request", json={"plan":"pro_plus"}).status_code == 401
