@@ -339,7 +339,7 @@ def receipt(reference):
 @app.get("/api/subscriptions")
 @requires_user
 def subscriptions():
-    return reply([{"name": "LocalPay Subscription", "price_cents": 2900,
+    return reply([{"name": "LocalPay Subscription", "price_cents": 4900,
                    "currency": "ZAR", "billing_interval": "month",
                    "billing_enabled": False, "proposed": True,
                    "target_businesses": ["Spaza shops", "Small restaurants",
