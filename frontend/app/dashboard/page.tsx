@@ -1,1 +1,2 @@
-export default function Dashboard(){return <main className="wrap section"><h1 style={{fontSize:32,fontWeight:700}}>Merchant dashboard</h1><p>Connect Supabase and deploy the Flask API to enable merchant payments and analytics.</p><div className="grid"><div className="panel"><h3>Verified sales</h3><p>—</p></div><div className="panel"><h3>Pending payments</h3><p>—</p></div></div></main>}
+import MerchantWorkspace from '../../components/MerchantWorkspace';
+export default function Dashboard(){return <MerchantWorkspace view="overview"/>;}
