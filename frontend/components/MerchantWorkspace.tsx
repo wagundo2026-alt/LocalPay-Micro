@@ -369,7 +369,7 @@ export default function MerchantWorkspace({view}: {view:View}){
      <section className="lp-card lp-subscription-dashboard">
       <div className="lp-eyebrow">YOUR MONTHLY CHECKOUT ALLOWANCE</div>
       <h2>{planInfo?.name||'Starter'} plan <span className="lp-chip">TEST MODE</span></h2>
-      <p className="lp-plan-price">{money(planInfo?.price_cents??0)}<small>/month · proposed</small></p>
+      <p className="lp-plan-price">{money(planInfo?.price_cents??0)}<small>/month · {planInfo?.plan==='starter'?'free Starter':'proposed upgrade'}</small></p>
       <p><strong>{planInfo?.used??0} of {planInfo?.monthly_limit??200}</strong> Paystack checkout attempts used this month · <strong>{planInfo?.remaining??200} remaining</strong></p>
       <div className="lp-quota-track" role="progressbar" aria-label="Monthly checkout allowance used" aria-valuenow={planInfo?.used??0} aria-valuemin={0} aria-valuemax={planInfo?.monthly_limit??200}><div style={{width:((planInfo?.used??0)/(planInfo?.monthly_limit||200)*100)+'%'}}/></div>
       <p className="lp-field-hint">Limits reset at 00:00 UTC on the first day of each month (next reset: {planInfo?.next_reset?new Date(planInfo.next_reset).toLocaleDateString('en-ZA'):'next month'}). Failed and abandoned checkout attempts count. Generating a QR or link does not consume an attempt.</p>
@@ -379,7 +379,7 @@ export default function MerchantWorkspace({view}: {view:View}){
      <div className="lp-plan-grid">
       {([
        {key:'starter' as const,name:'Starter',price:0,limit:200,subtitle:'No monthly subscription for micro-businesses',features:['Payment links and QR codes','Essential payment records']},
-       {key:'basic' as const,name:'Basic',price:4900,limit:500,subtitle:'Optional insights and more checkouts',features:['Everything in Starter','Sales dashboard and simple reports']}, 
+       {key:'basic' as const,name:'Basic',price:4900,limit:500,subtitle:'Optional insights and more checkouts',features:['Everything in Starter','Additional checkout capacity and planned reports']}, 
        {key:'pro' as const,name:'Pro',price:9900,limit:1000,subtitle:'For busy spaza shops and takeaways',features:['Everything in Basic','Downloadable reports and insights']},
        {key:'pro_plus' as const,name:'Pro Plus',price:19900,limit:5000,subtitle:'For higher-volume shops and restaurants',features:['Everything in Pro','More monthly checkout capacity']}
       ]).map(p=><article key={p.key} className={'lp-card lp-plan '+(planInfo?.plan===p.key?'lp-plan-active':'')}>
