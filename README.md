@@ -11,7 +11,7 @@ Designed specifically for informal traders, small restaurants and takeaways, loc
 - Fixed-amount payment links, shareable WhatsApp URLs and scan-to-pay QR codes
 - Paystack sandbox **hosted checkout**, signed webhook and server-side transaction verification
 - Printable test receipts and CSV transaction report
-- Sales analytics, business settings and proposed Basic R49 (200 checkout attempts/month), Pro R99 (1,000) and Pro Plus R199 (5,000) plans (billing disabled)
+- Sales analytics, business settings and free Starter R0 (200 checkout attempts/month), optional Basic R49 (500), Pro R99 (1,000) and Pro Plus R199 (5,000) plans (billing disabled)
 - Restricted platform admin area with server-verified roles
 
 **No live money, merchant settlement, production subscriptions or marketplace transfers are supported.**
@@ -157,12 +157,12 @@ Set local environment variables in non-committed `.env.local` and `.env` files b
 
 ## Monthly checkout limits and upgrade requests
 
-- Basic: **R49/month**, **200 initiated Paystack checkout sessions per UTC calendar month**.
+- Starter: **R0/month**, **200 initiated Paystack checkout sessions per UTC calendar month**, no required monthly payment.\n- Basic: **R49/month**, **500 initiated checkout sessions** (optional, proposed).
 - Pro: **R99/month**, **1,000 checkout sessions**.
 - Pro Plus: **R199/month**, **5,000 checkout sessions**.
 - These count checkout attempts (including abandoned, failed and provider-error attempts); QR/link creation is unlimited. Limits reset at **00:00 UTC on the 1st of each month**.
 - Postgres function `localpay_create_checkout_attempt` locks the merchant and atomically reserves a transaction, preventing concurrent overrun. It is callable only by `service_role`, through the authenticated Flask backend.
-- All new and existing merchants have Basic sandbox limits unless an authorised back-office action explicitly activates another tier in `merchant_plan_entitlements`.
+- Merchants with no entitlement row automatically use free Starter sandbox limits. Existing explicitly configured paid tiers remain unchanged, subject to authorisation. No live subscription billing exists.
 - The **My plan** dashboard shows actual server-side usage and submits a non-billing upgrade request. An upgrade request **does not change the plan or take money**. Activation/paid billing requires a verified subscription billing integration and operational approval.
 - Apply Supabase migration `localpay_tiered_monthly_checkout_quotas` before deploying the backend. The migration has already been applied to the linked LocalPay Supabase project.
-- Paystack card processing fees for merchant sales are separate from the software subscription.
+- Underlying provider processing costs are separate from optional software subscriptions. For an approved future live pilot, the proposed promotional merchant fee is 1% on eligible transactions for the first three months, subsidised by LocalPay only up to a disclosed R30/merchant/month budget. Once the cap is used, the normal disclosed provider charge applies. **The promotion is NOT active; no live provider settlements or fee reimbursements are enabled.**
