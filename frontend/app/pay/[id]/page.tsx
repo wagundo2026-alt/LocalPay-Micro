@@ -3,7 +3,7 @@ import {useParams,useRouter} from 'next/navigation';
 import {useEffect,useState,type FormEvent} from 'react';
 import Link from 'next/link';
 import {ArrowRight,CheckCircle2,CreditCard,LockKeyhole,ShieldCheck,Store} from 'lucide-react';
-const API=(process.env.NEXT_PUBLIC_API_URL||'').replace(/\/$/,'');
+const API='/api/backend';
 type PayInfo={token:string;business_name:string;amount_cents:number;description:string;mode:string};
 const money=(c:number)=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(c/100);
 export default function Checkout(){
