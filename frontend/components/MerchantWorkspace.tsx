@@ -194,7 +194,6 @@ export default function MerchantWorkspace({view}: {view:View}){
  }
  async function copy(value:string){try{await navigator.clipboard.writeText(value);setSuccess('Copied! Your link is ready to share.');}catch{setError('Copy is unavailable. Please select the link manually.');}}
  async function logout(){await getSupabaseBrowser().auth.signOut();router.replace('/login');router.refresh();}
- const paid=transactions.filter(t=>t.status==='successful');
  const recent=transactions.slice(0,6);
  const selected=links.find(l=>l.id===qrSelected)||links[0];
  const filtered=transactions.filter(t=>(statusFilter==='all'||t.status===statusFilter) &&
