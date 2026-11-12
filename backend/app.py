@@ -398,8 +398,8 @@ def initialize_payment():
     payer_name = str(body.get("payer_name") or "").strip()
     if not PAYER_EMAIL.fullmatch(email) or len(email)>254:
         return reply(status=400, error="Please enter a valid payer email.")
-    if len(payer_name)<2 or len(payer_name)>100 or any(ord(c)<32 for c in payer_name):
-        return reply(status=400, error="Please enter your name (2–100 characters).")
+    if payer_name and (len(payer_name)<2 or len(payer_name)>100 or any(ord(c)<32 for c in payer_name)):
+        return reply(status=400, error="Payer name must contain 2–100 printable characters.")
     link = available_link(db, token)
     if not link:
         return reply(status=410, error="This payment request has expired or was already used. Ask the merchant for a new link.")
@@ -425,7 +425,7 @@ def initialize_payment():
     # Payer-supplied identity is recorded for the merchant only; it is NOT
     # proof of legal identity or account ownership.
     db.table("transactions").update({
-        "payer_name": payer_name, "payer_email": email
+        "payer_name": payer_name or None, "payer_email": email
     }).eq("id", quota["transaction_id"]).eq("status","pending").execute()
     try:
         redirect = paystack_initialize(reference, int(link["amount_cents"]), email,
