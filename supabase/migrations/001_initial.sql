@@ -1,0 +1,34 @@
+-- LocalPay Micro schema applied to Supabase on 2026-11-12.
+-- For a clean Supabase project only. Payment status updates must be performed by trusted backend.
+create extension if not exists pgcrypto;
+create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text, created_at timestamptz not null default now());
+create table public.merchants (id uuid primary key default gen_random_uuid(), owner_id uuid not null references auth.users(id), business_name text not null check(length(business_name) between 2 and 100), category text, province text, town text, created_at timestamptz not null default now());
+create table public.merchant_members (merchant_id uuid references public.merchants(id) on delete cascade, user_id uuid references auth.users(id) on delete cascade, role text not null check(role in ('owner','staff')), primary key(merchant_id,user_id));
+create table public.payment_links (id uuid primary key default gen_random_uuid(), merchant_id uuid not null references public.merchants(id), token text not null unique, amount_cents bigint not null check(amount_cents between 100 and 10000000), description text, active boolean not null default true, created_at timestamptz not null default now());
+create table public.transactions (id uuid primary key default gen_random_uuid(), merchant_id uuid not null references public.merchants(id), payment_link_id uuid not null references public.payment_links(id), reference text not null unique, provider text not null default 'demo', provider_reference text unique, amount_cents bigint not null check(amount_cents>0), currency text not null default 'ZAR' check(currency='ZAR'), status text not null default 'pending' check(status in ('pending','successful','failed','refunded')), verified_at timestamptz, created_at timestamptz not null default now());
+create table public.subscriptions (id uuid primary key default gen_random_uuid(), merchant_id uuid not null references public.merchants(id), plan text not null default 'free' check(plan in ('free','growth','business')), is_demo boolean not null default true, created_at timestamptz not null default now());
+create table public.payment_events (id uuid primary key default gen_random_uuid(), transaction_id uuid references public.transactions(id), provider_event_id text unique, event_type text not null, created_at timestamptz not null default now());
+create table public.audit_logs (id uuid primary key default gen_random_uuid(), actor_id uuid references auth.users(id), merchant_id uuid references public.merchants(id), action text not null, created_at timestamptz not null default now());
+create table public.platform_admins (user_id uuid primary key references auth.users(id));
+create index on public.merchants(owner_id);
+create index on public.transactions(merchant_id,created_at desc);
+create index on public.payment_links(merchant_id,created_at desc);
+create index on public.merchant_members(user_id);
+alter table public.profiles enable row level security;
+alter table public.merchants enable row level security;
+alter table public.merchant_members enable row level security;
+alter table public.payment_links enable row level security;
+alter table public.transactions enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.payment_events enable row level security;
+alter table public.audit_logs enable row level security;
+alter table public.platform_admins enable row level security;
+create policy profile_read on public.profiles for select to authenticated using(id=(select auth.uid()));
+create policy merchant_read on public.merchants for select to authenticated using(owner_id=(select auth.uid()));
+create policy member_read on public.merchant_members for select to authenticated using(user_id=(select auth.uid()));
+create policy link_read on public.payment_links for select to authenticated using(exists(select 1 from public.merchants m where m.id=merchant_id and m.owner_id=(select auth.uid())));
+create policy transaction_read on public.transactions for select to authenticated using(exists(select 1 from public.merchants m where m.id=merchant_id and m.owner_id=(select auth.uid())));
+create policy subscription_read on public.subscriptions for select to authenticated using(exists(select 1 from public.merchants m where m.id=merchant_id and m.owner_id=(select auth.uid())));
+revoke all on all tables in schema public from anon;
+revoke insert, update, delete on all tables in schema public from authenticated;
+grant select on public.profiles,public.merchants,public.merchant_members,public.payment_links,public.transactions,public.subscriptions to authenticated;
