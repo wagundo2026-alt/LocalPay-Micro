@@ -1,53 +1,41 @@
 import Link from 'next/link';
-import { ArrowRight, Check, ShieldCheck, Store, UtensilsCrossed, ShoppingBasket, ReceiptText } from 'lucide-react';
+import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
 
-// This is a proposed subsidy policy, NOT an activated settlement arrangement.
-// Providers currently deduct their own fees; LocalPay cannot yet reimburse them.
-const samples=[
- {sale:'R20',merchant:'R0.20',eft:'R0.26',card:'R1.62'},
- {sale:'R100',merchant:'R1.00',eft:'R1.30',card:'R3.49'},
- {sale:'R500',merchant:'R5.00',eft:'R6.50',card:'R12.83'},
-];
-
-const plans=[
- {name:'Basic',price:'R49',limit:'200',audience:'For a small stall or part-time trader',features:['200 checkout attempts per month','QR codes and payment links','Transaction history','Simple sales dashboard']},
- {name:'Pro',price:'R99',limit:'1,000',audience:'For a busy spaza shop or takeaway',features:['1,000 checkout attempts per month','Everything in Basic','Downloadable sales reports','Sales insights'],featured:true},
- {name:'Pro Plus',price:'R199',limit:'5,000',audience:'For a high-volume shop or restaurant',features:['5,000 checkout attempts per month','Everything in Pro','Room for busier daily trading','Priority support (planned)']}
+const plans = [
+ {name:'Starter',price:'R0',limit:'200',audience:'For micro-businesses getting started',features:['No compulsory monthly subscription','QR codes and shareable payment links','Essential test transaction history','Simple payment status verification'],featured:true},
+ {name:'Basic',price:'R49',limit:'500',audience:'For merchants who want business insights',features:['Everything in Starter','500 checkout attempts per month','Sales dashboard and reports']},
+ {name:'Pro',price:'R99',limit:'1,000',audience:'For growing shops',features:['Everything in Basic','1,000 checkout attempts per month','Advanced downloadable reports (planned)']},
+ {name:'Pro Plus',price:'R199',limit:'5,000',audience:'For high-volume businesses',features:['Everything in Pro','5,000 checkout attempts per month','Priority support and enhanced tools (planned)']}
 ];
 export default function Pricing(){
  return <main className="lp-pricing-page">
   <section className="lp-pricing-hero">
-   <div className="lp-eyebrow">PREDICTABLE COSTS FOR EVERY KIND OF LOCAL BUSINESS</div>
-   <h1>Start small. <span>Upgrade as you grow.</span></h1>
-   <p>Built for informal traders, spaza shops, food stores and small restaurants. Pay for the level of monthly checkout capacity that suits your business.</p>
+   <div className="lp-eyebrow">LOW-COST DIGITAL PAYMENTS FOR MICRO-BUSINESSES</div>
+   <h1>Accept payments without a <span>monthly subscription.</span></h1>
+   <p>Start on our R0 Starter tier for QR codes and payment links. Upgrade only when you need more business tools. No card machine is required.</p>
   </section>
   <div className="lp-pricing-grid lp-tier-grid">
    {plans.map(p=><article key={p.name} className={'lp-card lp-pricing-card '+(p.featured?'lp-pricing-featured':'')}>
-    <span className="lp-chip">{p.featured?'FOR GROWING BUSINESSES':'PROPOSED SUBSCRIPTION'}</span>
+    <span className="lp-chip">{p.name==='Starter'?'FREE STARTER · TEST MODE':'OPTIONAL PREMIUM · PROPOSED'}</span>
     <h2>{p.name}</h2><p>{p.audience}</p>
     <div className="lp-pricing-cost">{p.price}<span>/month</span></div>
-    <div className="lp-tier-limit"><strong>{p.limit}</strong><span>Paystack checkout attempts / month</span></div>
-    <Link className={'lp-primary lp-full '+(!p.featured?'lp-pricing-alt':'')} href="/register">{p.name==='Basic'?'Start with Basic':'Create a test account'} <ArrowRight size={17}/></Link>
+    <div className="lp-tier-limit"><strong>{p.limit}</strong><span>Paystack test checkout attempts / month</span></div>
+    <Link className={'lp-primary lp-full '+(!p.featured?'lp-pricing-alt':'')} href="/register">{p.name==='Starter'?'Start with R0 Starter':'Create a free test account'} <ArrowRight size={17}/></Link>
     <div className="lp-pricing-list">{p.features.map(feature=><div key={feature}><Check size={17}/>{feature}</div>)}</div>
    </article>)}
   </div>
-  <section className="lp-pricing-faq" aria-labelledby="subsidy-title">
-   <div className="lp-eyebrow">PROPOSED PAYMENT FEE POLICY · NOT LIVE</div>
-   <h2 id="subsidy-title">Just 1% for merchants. We plan to cover the rest.</h2>
-   <p>Our goal is for merchants to bear only 1% of each successful local transaction. LocalPay would pay the difference between that 1% and the actual payment-provider processing charge. This arrangement requires a funded subsidy reserve, merchant settlement integration, provider approval and operational controls before launch. It is not active in Paystack test mode.</p>
-   <div className="lp-table-wrap">
-    <table className="lp-table">
-     <thead><tr><th>Customer pays</th><th>Merchant's target fee (1%)</th><th>LocalPay subsidy: EFT*</th><th>LocalPay subsidy: local card*</th></tr></thead>
-     <tbody>{samples.map(row=><tr key={row.sale}><td>{row.sale}</td><td>{row.merchant}</td><td>{row.eft}</td><td>{row.card}</td></tr>)}</tbody>
-    </table>
-   </div>
-   <p className="lp-field-hint">*Illustrative South African Paystack standard rates: EFT 2%, local cards 2.9% + R1, plus 15% VAT on provider fees, rounded to cents; merchant target fee assumes 1% of sale. Actual subsidy depends on payment method, contract, tax treatment and processing costs. This is not a live or guaranteed merchant charge.</p>
+  <section className="lp-pricing-faq" aria-labelledby="processing-title">
+   <div className="lp-eyebrow">TRANSPARENT PAYMENT COSTS</div>
+   <h2 id="processing-title">Subscription and payment-processing costs are different.</h2>
+   <p>Starter has no compulsory monthly subscription. Payment providers charge a separate fee when an actual payment is processed. We aim to prioritise lower-cost bank/EFT options where available, subject to provider and merchant eligibility.</p>
+   <p>Our proposed introductory promotion would let eligible merchants pay 1% for successful payments during their first three months, with LocalPay covering the difference <strong>only within a disclosed monthly subsidy cap</strong>. The proposed cap is R30 per merchant per month. Once the cap is used or the promotion ends, the provider’s disclosed standard charges apply. The promotion is not active and cannot yet be applied to real payments.</p>
+   <p className="lp-field-hint">Illustrative published Paystack South Africa prices are 2% for supported EFT and 2.9% + R1 for local cards, excluding VAT. Actual method availability and charges depend on provider terms. No live merchant settlement or subsidy reimbursement is enabled.</p>
   </section>
-  <div className="lp-pricing-note"><ShieldCheck size={20}/><p><strong>Important:</strong> These are proposed software subscription prices. Billing is not live, so new merchants currently use the Basic sandbox limit. Upgrade requests are recorded but do not activate higher limits or charge money. The monthly limits count initiated Paystack checkout sessions (including abandoned or failed attempts), reset at 00:00 UTC on the first day of each month, and are enforced by the backend. Creating payment links and QR codes does not use the transaction quota. Payment-provider fees remain charged by Paystack in the sandbox; the planned 1% merchant cap and LocalPay subsidy are NOT activated and must not be presented as current settlement behavior.</p></div>
-  <section className="lp-pricing-faq"><div className="lp-eyebrow">MADE FOR LOCAL TRADE</div><h2>Find the right fit</h2>
-   <article><strong>What if I reach my limit?</strong><p>Existing links stay available, but no new checkout session can begin until the next monthly reset or a higher plan is activated. Request an upgrade from your dashboard.</p></article>
-   <article><strong>Will clicking upgrade charge my card?</strong><p>No. Billing is not connected yet. The button submits a request for future activation, rather than pretending a payment succeeded.</p></article>
-   <article><strong>Will I really pay only 1% today?</strong><p>Not yet. During this hackathon, Paystack test mode applies and no funds settle. We are proposing a future 1% merchant fee with LocalPay subsidising the difference, subject to approved provider settlement mechanics and sufficient funding.</p></article>
+  <div className="lp-pricing-note"><ShieldCheck size={20}/><p><strong>Paystack TEST mode:</strong> No real money moves. New merchants receive the Starter sandbox tier with a limit of 200 initiated checkouts per month. Paid subscriptions are proposed; no money is collected for upgrades. Upgrade requests must be approved and activated by an authorised operator. QR/link generation does not use checkout attempts. No 1% promotional subsidy is operational.</p></div>
+  <section className="lp-pricing-faq"><div className="lp-eyebrow">MADE FOR LOCAL TRADE</div><h2>Frequently asked questions</h2>
+   <article><strong>Can I use LocalPay without paying R49 every month?</strong><p>Yes. The Starter tier has a R0 monthly subscription for QR and payment-link tools. Live processing still requires an approved payment provider, which may charge transaction fees.</p></article>
+   <article><strong>Can I upgrade later?</strong><p>Yes. You can request a paid plan from the dashboard. Upgrades currently do not collect a subscription fee or automatically change your entitlement.</p></article>
+   <article><strong>Do you currently charge merchants just 1%?</strong><p>No. The introductory 1% offer is a proposed, capped subsidy for a future provider-approved live pilot. LocalPay currently operates in test mode only.</p></article>
   </section>
  </main>;
 }
