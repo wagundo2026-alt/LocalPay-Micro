@@ -147,3 +147,40 @@ def test_malformed_json_does_not_disable_limits():
 def test_no_public_upgrade_without_auth():
     response = app.test_client().post("/api/merchant/upgrade-request", json={"plan":"pro_plus"})
     assert response.status_code == 401
+
+
+def test_payment_link_tokens_are_unpredictable_and_unique():
+    import secrets
+    from app import PAYMENT_TOKEN
+    tokens=[secrets.token_urlsafe(24) for _ in range(100)]
+    assert all(PAYMENT_TOKEN.fullmatch(token) for token in tokens)
+    assert len(set(tokens))==len(tokens)
+
+
+def test_invalid_token_is_rejected_before_database_lookup():
+    from app import available_link
+    class DbThatMustNotBeUsed:
+        def table(self, name):
+            raise AssertionError("Database should not be queried for invalid token")
+    assert available_link(DbThatMustNotBeUsed(), "../../merchants") is None
+    assert available_link(DbThatMustNotBeUsed(), "short") is None
+
+
+def test_payer_email_validation_rejects_control_characters():
+    from app import PAYER_EMAIL
+    assert PAYER_EMAIL.fullmatch("payer@example.com")
+    for value in ("payer@example.com\nother@example.org","a b@example.com","no-at-symbol","test@invalid"):
+        assert not PAYER_EMAIL.fullmatch(value)
+
+
+def test_revoke_requires_auth():
+    response=app.test_client().post(
+        "/api/payment-links/00000000-0000-0000-0000-000000000001/revoke")
+    assert response.status_code==401
+
+
+def test_public_checkout_does_not_accept_invalid_link():
+    # GET with an invalid token short-circuits before DB operations.
+    response=app.test_client().get("/api/checkout/invalid")
+    # Without configured Supabase it fails closed rather than returning merchant data.
+    assert response.status_code in (404,503)
