@@ -95,6 +95,28 @@ def index():
 def health():
     return reply({"status": "ok", "mode": "DEMO", "database_configured": bool(URL and KEY)})
 
+@app.get("/api/health/database")
+@limiter.limit("10 per minute")
+def database_health():
+    """Safely check server-side Supabase connectivity without exposing credentials."""
+    if not URL or not KEY or "YOUR_" in URL or "YOUR_" in KEY:
+        return reply(status=503, error="Render is missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+    try:
+        db = get_db()
+        db.table("merchants").select("id").limit(1).execute()
+        return reply({"status": "ok", "database": "connected"})
+    except Exception:
+        app.logger.exception("Database connectivity check failed")
+        return reply(status=503, error="Render cannot query Supabase. Check SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and Supabase Data API configuration.")
+
+@app.errorhandler(Exception)
+def unexpected_error(exc):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(exc, HTTPException):
+        return reply(status=exc.code or 500, error=exc.description if (exc.code or 500) < 500 else "Backend request failed")
+    app.logger.exception("Unhandled error while processing %s %s", request.method, request.path)
+    return reply(status=500, error="Backend encountered a server error. Check Render Logs for the exception at this request time.")
+
 @app.post("/api/merchant/onboard")
 @requires_user
 def onboard():
