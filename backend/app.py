@@ -4,6 +4,7 @@ import uuid
 import secrets
 import csv
 import io
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from functools import wraps
@@ -309,6 +310,19 @@ def request_plan_upgrade():
     return reply({"requested_plan": requested, "status": "pending",
                   "message": "Upgrade request received. Your plan remains unchanged until approved and activated. No charge was made."}, 201)
 
+# Tokens are secrets embedded in checkout links. Never accept arbitrary strings
+# in the public lookup and never log them.
+PAYMENT_TOKEN = re.compile(r"^[A-Za-z0-9_-]{32}$")
+PAYER_EMAIL = re.compile(r"^[^\\s@]{1,64}@[^\\s@]{1,185}\\.[A-Za-z]{2,63}$")
+
+def available_link(db, token):
+    if not PAYMENT_TOKEN.fullmatch(token):
+        return None
+    rows = (db.table("payment_links").select("*").eq("token",token)
+            .eq("active",True).gt("expires_at",datetime.now(timezone.utc).isoformat())
+            .is_("consumed_at","null").limit(1).execute().data)
+    return rows[0] if rows else None
+
 @app.post("/api/payment-links")
 @limiter.limit("30 per minute")
 @requires_merchant
@@ -336,13 +350,21 @@ def checkout(token):
     db = get_db()
     if not db:
         return reply(status=503, error="Supabase is not configured")
-    rows = db.table("payment_links").select("*").eq("token", token).eq("active", True).limit(1).execute().data
-    if not rows:
-        return reply(status=404, error="Payment link not available")
-    link = rows[0]
-    merchants = db.table("merchants").select("business_name").eq("id", link["merchant_id"]).limit(1).execute().data
-    return reply({"token": token, "business_name": merchants[0]["business_name"] if merchants else "Merchant",
-                  "amount_cents": link["amount_cents"], "description": link["description"], "mode": "DEMO"})
+    link = available_link(db, token)
+    if not link:
+        return reply(status=410, error="This payment request has expired or was already used. Ask the merchant for a new link.")
+    merchants = (db.table("merchants").select("business_name,category,town,province")
+                 .eq("id", link["merchant_id"]).limit(1).execute().data)
+    if not merchants:
+        return reply(status=410, error="This merchant is unavailable. Do not continue with payment.")
+    merchant = merchants[0]
+    return reply({"business_name": merchant["business_name"],
+                  "merchant_category": merchant.get("category"),
+                  "merchant_town": merchant.get("town"),
+                  "merchant_province": merchant.get("province"),
+                  "amount_cents": link["amount_cents"], "currency": "ZAR",
+                  "description": link["description"], "expires_at": link["expires_at"],
+                  "mode": "PAYSTACK_TEST"})
 
 @app.post("/api/payments/initialize")
 @limiter.limit("6 per minute; 30 per hour")
@@ -355,13 +377,15 @@ def initialize_payment():
         return reply(status=503, error="Only Paystack test checkout is available")
     body = request.get_json(silent=True) or {}
     token = str(body.get("token") or "")
-    email = str(body.get("email") or "").strip()
-    if len(email) > 254 or "@" not in email or "." not in email.split("@")[-1]:
-        return reply(status=400, error="Please enter a valid customer email to continue")
-    rows = db.table("payment_links").select("*").eq("token", token).eq("active", True).limit(1).execute().data
-    if not rows:
-        return reply(status=404, error="Payment link is no longer available")
-    link = rows[0]
+    email = str(body.get("email") or "").strip().lower()
+    payer_name = str(body.get("payer_name") or "").strip()
+    if not PAYER_EMAIL.fullmatch(email) or len(email)>254:
+        return reply(status=400, error="Please enter a valid payer email.")
+    if len(payer_name)<2 or len(payer_name)>100 or any(ord(c)<32 for c in payer_name):
+        return reply(status=400, error="Please enter your name (2–100 characters).")
+    link = available_link(db, token)
+    if not link:
+        return reply(status=410, error="This payment request has expired or was already used. Ask the merchant for a new link.")
     if link["merchant_id"] != os.getenv("PAYSTACK_TEST_MERCHANT_ID", ""):
         return reply(status=403, error="This merchant is not enabled for Paystack sandbox checkout yet")
     secret = os.getenv("PAYSTACK_SECRET_KEY", "")
@@ -378,11 +402,14 @@ def initialize_payment():
         "p_reference": reference, "p_amount_cents": int(link["amount_cents"])
     }).execute().data
     if not quota or not quota.get("allowed"):
-        return reply(status=429, error=(
-            "Monthly checkout limit reached on your " +
-            str((quota or {}).get("plan", "basic")).replace("_", " ").title() +
-            " plan. Ask the merchant to request a plan upgrade before starting new checkouts."
-        ))
+        if (quota or {}).get("reason") == "link_unavailable":
+            return reply(status=410, error="This payment request was already used or expired. Ask the merchant for a new link.")
+        return reply(status=429, error="This merchant reached their monthly checkout limit. Ask them to upgrade their plan.")
+    # Payer-supplied identity is recorded for the merchant only; it is NOT
+    # proof of legal identity or account ownership.
+    db.table("transactions").update({
+        "payer_name": payer_name, "payer_email": email
+    }).eq("id", quota["transaction_id"]).eq("status","pending").execute()
     try:
         redirect = paystack_initialize(reference, int(link["amount_cents"]), email,
                                        origin + "/payment/success?reference=" + reference)
@@ -477,6 +504,7 @@ def transactions_csv():
     })
 
 @app.get("/api/receipts/<reference>")
+@limiter.limit("30 per minute")
 def receipt(reference):
     db = get_db()
     if not db:
