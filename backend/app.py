@@ -313,7 +313,7 @@ def request_plan_upgrade():
 # Tokens are secrets embedded in checkout links. Never accept arbitrary strings
 # in the public lookup and never log them.
 PAYMENT_TOKEN = re.compile(r"^[A-Za-z0-9_-]{32}$")
-PAYER_EMAIL = re.compile(r"^[^\\s@]{1,64}@[^\\s@]{1,185}\\.[A-Za-z]{2,63}$")
+PAYER_EMAIL = re.compile(r"^[^\s@]{1,64}@[^\s@]{1,185}\.[A-Za-z]{2,63}$")
 
 def available_link(db, token):
     if not PAYMENT_TOKEN.fullmatch(token):
@@ -344,6 +344,22 @@ def payment_links():
     return reply(get_db().table("payment_links").select("*")
                  .eq("merchant_id", request.merchant["id"]).order("created_at", desc=True).execute().data)
 
+@app.post("/api/payment-links/<link_id>/revoke")
+@limiter.limit("30 per hour")
+@requires_merchant
+def revoke_payment_link(link_id):
+    try:
+        link_uuid = str(uuid.UUID(link_id))
+    except ValueError:
+        return reply(status=404, error="Payment link not found")
+    db = get_db()
+    rows = (db.table("payment_links").update({"active": False})
+            .eq("id",link_uuid).eq("merchant_id",request.merchant["id"])
+            .eq("active",True).execute().data)
+    if not rows:
+        return reply(status=404, error="Active payment link not found")
+    return reply({"id":link_uuid,"active":False,"message":"Payment link revoked."})
+
 @app.get("/api/checkout/<token>")
 @limiter.limit("30 per minute")
 def checkout(token):
@@ -362,6 +378,7 @@ def checkout(token):
                   "merchant_category": merchant.get("category"),
                   "merchant_town": merchant.get("town"),
                   "merchant_province": merchant.get("province"),
+                  "merchant_reference": str(link["merchant_id"])[:8].upper(),
                   "amount_cents": link["amount_cents"], "currency": "ZAR",
                   "description": link["description"], "expires_at": link["expires_at"],
                   "mode": "PAYSTACK_TEST"})
