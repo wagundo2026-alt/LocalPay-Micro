@@ -17,6 +17,17 @@ export default function ConnectionCheck(){
    results.push({name:'Render backend',status:working?'working':'failed',details:working?'Backend responds correctly. Database configured: '+String(json.data.database_configured):json?.error||'Backend responded with HTTP '+res.status});
   }catch(e){results.push({name:'Render backend',status:'failed',details:e instanceof Error?e.message:'Unable to contact Render via Vercel.'});}
   try{
+   const response=await fetch('/api/backend/api/health/database',{cache:'no-store'});
+   const json=await response.json();
+   results.push({
+    name:'Supabase database from Render',
+    status:response.ok&&json?.data?.database==='connected'?'working':'failed',
+    details:response.ok?'Render can query the merchants table.':json?.error||'HTTP '+response.status+' — check Render database configuration.',
+   });
+  }catch(e){
+   results.push({name:'Supabase database from Render',status:'failed',details:e instanceof Error?e.message:'Database check unavailable.'});
+  }
+  try{
    const supabase=getSupabaseBrowser();
    const {data,error}=await supabase.auth.getUser();
    if(error) results.push({name:'Supabase authentication',status:'failed',details:error.message});
