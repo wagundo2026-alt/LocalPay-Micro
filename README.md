@@ -1,31 +1,155 @@
-# LocalPay Micro — hackathon MVP
+# LocalPay Micro — South African micro-business payment MVP
 
-**Status: demo-only starter implementation, not production-ready payment infrastructure.** No real money can be accepted. The simulated payment endpoint must be disabled before any live deployment.
+**Current state: functional merchant portal + Paystack TEST integration (not a live merchant payments service).**
+Designed for spaza shops, salon owners, food sellers, market traders and other small businesses.
 
-## Architecture
-- `frontend/`: Next.js App Router, TypeScript, Tailwind, Supabase Auth, QR links. Deploy to Vercel.
-- `backend/`: Flask REST API with verified Supabase JWTs (asymmetric JWKS), merchant scoping, mock payment lifecycle. Deploy to Render.
-- `supabase/migrations/`: PostgreSQL schema, RLS read policies, no direct client writes.
+## What is built
 
-## Setup
-1. Create a Supabase project and execute `supabase/migrations/001_initial.sql` in its SQL editor.
-2. Copy `frontend/.env.example` to `frontend/.env.local` and set Supabase URL, **public** anon key and API URL.
-3. Copy `backend/.env.example` to `backend/.env` and set Supabase URL, **server-only** service-role key, allowed frontend origins and `ENABLE_DEMO_PAYMENTS=true` for a private hackathon demo only. Never commit `.env`.
-4. Run backend: `cd backend && pip install -r requirements.txt && flask --app app run --port 5000`.
-5. Run frontend: `cd frontend && npm install && npm run dev`.
-6. In Supabase Auth settings, configure Site URL and redirect URLs for localhost and your Vercel domain.
-7. Register, verify email, log in, onboard merchant, create R20 payment link, scan QR, simulate demo checkout, inspect transaction dashboard.
+- Human-friendly landing page, pricing, Supabase login/register, password reset and email confirmation
+- Authenticated merchant onboarding and workspace
+- Sales overview, real merchant-scoped transaction records, activity table and chart
+- Fixed-amount payment links, shareable WhatsApp URLs and scan-to-pay QR codes
+- Paystack sandbox **hosted checkout**, signed webhook and server-side transaction verification
+- Printable test receipts and CSV transaction report
+- Sales analytics, business settings and transparent demo subscription options
+- Restricted platform admin area with server-verified roles
 
-## Deployment
-- Render: Python web service, root directory `backend`, build command `pip install -r requirements.txt`, start command `gunicorn app:app --bind 0.0.0.0:$PORT`. Set backend environment variables in Render.
-- Vercel: root directory `frontend`, Next.js framework, set `NEXT_PUBLIC_*` environment variables. Update `FRONTEND_ORIGINS` to exact Vercel HTTPS domain.
-- Never expose `SUPABASE_SERVICE_ROLE_KEY` in Vercel or a `NEXT_PUBLIC_` variable.
+**No live money, merchant settlement, production subscriptions or marketplace transfers are supported.**
+A payment screenshot or redirect never marks a transaction successful.
 
-## Critical limitations and next steps
-- This starter uses **demo-only** payments. The `/api/payments/demo-complete` route is intentionally callable by anyone with a demo reference when enabled; **disable it** outside an isolated demo.
-- Before processing real money, integrate an approved PSP, hosted checkout, signed webhooks, independent verification, idempotency and reconciliation.
-- Add production-grade rate limits, atomic state transitions, audit logging, settlement records, stronger RLS, SSR authentication, testing and observability.
-- Before live use: POPIA review, PSP contracts, KYC/FICA and regulatory/security assessment.
+## Technology
 
-## Plans
-Free R0, Growth R49/month, Business R99/month; **illustrative pricing, no billing connected**. Provider processing fees are separate.
+- **Frontend:** Next.js App Router + TypeScript + Tailwind/CSS + Lucide + Recharts + QRCodeSVG on Vercel
+- **Backend:** Python 3.12, Flask, Gunicorn, PyJWT and Paystack integration on Render
+- **Database/Auth:** Supabase Postgres, Supabase Auth, Row-Level Security (server-only writes)
+
+## Configure Supabase
+
+Project: https://supabase.com/dashboard/project/uvjvkutpdwdvwwafhvon
+
+Run the schema migration once if this is a new project: `supabase/migrations/001_initial.sql`.
+This project has already had the schema applied to its connected Supabase database; **don't run the initial migration twice on the same database**.
+
+In Supabase Authentication, enable Email and configure your production Vercel origin (Site URL), including `https://YOUR-VERCEL-DOMAIN/auth/callback` under redirect URLs. Enable email confirmation.
+
+## Vercel frontend
+
+Root Directory: `frontend`. Framework: Next.js.
+
+Configure these environment variables, then redeploy:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://uvjvkutpdwdvwwafhvon.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your Supabase public publishable key or legacy anon key>
+NEXT_PUBLIC_API_URL=https://localpay-micro1.onrender.com
+```
+
+The key above is a **public** key. Never put service-role or Paystack secret keys in the frontend.
+
+## Render Flask backend
+
+Service Type: **Web Service**, Root Directory: `backend`, Python 3.12.
+
+Build Command: `pip install -r requirements.txt`
+
+Start Command: `gunicorn app:app --bind 0.0.0.0:$PORT`
+
+```dotenv
+SUPABASE_URL=https://uvjvkutpdwdvwwafhvon.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<server-only Supabase service-role/secret key>
+FRONTEND_ORIGINS=https://YOUR-PRODUCTION-VERCEL-DOMAIN.vercel.app
+FRONTEND_URL=https://YOUR-PRODUCTION-VERCEL-DOMAIN.vercel.app
+PAYMENT_PROVIDER=paystack
+PAYSTACK_SECRET_KEY=sk_test_<your Paystack TEST secret>
+PAYSTACK_WEBHOOK_SECRET=whsec_<your Paystack webhook signing secret>
+PAYSTACK_TEST_MERCHANT_ID=<UUID of one approved-for-demo merchant>
+ENABLE_DEMO_PAYMENTS=false
+```
+
+**Paystack TEST mode only:** `sk_live_` keys are rejected by the backend.
+
+### Configure the demo merchant
+
+1. Sign up, confirm your email and log into LocalPay on Vercel.
+2. Complete the merchant onboarding page.
+3. Open **Dashboard → Business settings** and copy the read-only **Merchant ID** UUID.
+4. Put that UUID in Render `PAYSTACK_TEST_MERCHANT_ID` and save / redeploy.
+5. Your Paystack TEST key can now initialize test checkout **for that one merchant only**.
+
+This gate prevents pretending a single Paystack account can freely process and settle money for unrelated merchants. Real multi-merchant payments require provider agreement and a reviewed onboarding/settlement model.
+
+### Paystack webhook
+
+Configure the **TEST** webhook destination in your Paystack Dashboard:
+
+```text
+https://localpay-micro1.onrender.com/api/webhooks/payments
+```
+
+The webhook verifies the newer timestamped `Paystack-Signature` using your `whsec_` secret, or validates legacy `x-paystack-signature` when the newer header is absent. It then calls Paystack's verify API and checks the transaction reference, amount, currency, test domain, and configured merchant **before** crediting the transaction.
+
+Relevant official docs:
+- https://paystack.com/docs/api/transaction/
+- https://paystack.com/docs/payments/webhooks/
+- https://paystack.com/docs/payments/verify-payments/
+
+## Routes
+
+| Area | Route |
+|---|---|
+| Home | `/` |
+| Pricing | `/pricing` |
+| Registration | `/register` |
+| Login | `/login` |
+| Forgot password | `/forgot-password` |
+| Merchant onboarding | `/onboarding` |
+| Merchant overview | `/dashboard` |
+| Payment links | `/dashboard/payments` |
+| QR codes | `/dashboard/qr-code` |
+| Transactions | `/dashboard/transactions` |
+| Analytics | `/dashboard/analytics` |
+| Subscription plans | `/dashboard/subscription` |
+| Settings | `/dashboard/settings` |
+| Customer checkout | `/pay/[id]` |
+| Payment verification result | `/payment/success?reference=...` |
+| Receipt | `/receipt/[reference]` |
+| Platform admin | `/admin` |
+
+## Smoke test
+
+1. Open `https://localpay-micro1.onrender.com/api/health`: expected `data.status = "ok"`.
+2. Register and sign in on the Vercel website.
+3. Complete merchant onboarding; confirm its business details in the dashboard.
+4. Configure `PAYSTACK_TEST_MERCHANT_ID` as above.
+5. Create an R20 payment request on the **Payment links** page.
+6. Copy the link (or show the QR code) and open the customer checkout page.
+7. Enter your test email, continue to Paystack hosted checkout, and use **Paystack test payment details**.
+8. After the sandbox checkout returns, LocalPay checks Paystack's verification API.
+9. Confirm the test payment appears in **Transactions**, **Overview**, and the printable receipt.
+
+If verification is unavailable, the payment remains **pending**, not successful.
+
+## Safety and production launch limits
+
+- Real merchant funds do **not** pass through LocalPay.
+- This is a **sandbox only** integration, not an acquiring or settlement product.
+- A live platform requires PSP-approved independent merchant onboarding, FICA/KYC, POPIA controls, fraud monitoring, refunds/dispute operations, monitoring, rate limits, stronger audit/reconciliation, and authorization/legal review as applicable.
+- Subscriptions are illustrative UI only. Do not market them as purchased or billed.
+- The current test-mode single-instance implementation and webhook retries need additional hardening and testing before live use.
+
+## Development
+
+```bash
+# frontend
+cd frontend
+npm install
+npm run dev
+
+# backend (second terminal)
+cd backend
+pip install -r requirements.txt
+python -m pytest -q tests
+gunicorn app:app --bind 0.0.0.0:5000
+```
+
+Set local environment variables in non-committed `.env.local` and `.env` files based on the provided examples.
