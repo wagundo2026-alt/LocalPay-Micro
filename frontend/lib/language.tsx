@@ -14,7 +14,7 @@ type Messages = Record<string, string>;
 
 const en: Messages = {
  'language':'Language',
- 'nav.how':'How it works','nav.features':'Features','nav.pricing':'Subscription','nav.login':'Log in','nav.start':'Start for free',
+ 'nav.how':'How it works','nav.features':'Features','nav.pricing':'Pricing','nav.login':'Log in','nav.start':'Start for free',
  'common.back':'Back to LocalPay','common.wait':'Please wait...','common.name':'Your name','common.email':'Email address','common.password':'Password',
  'common.save':'Save','common.cancel':'Cancel','common.success':'Successful','common.pending':'Pending','common.failed':'Failed','common.amount':'Amount (ZAR)','common.test':'PAYSTACK TEST MODE',
  'checkout.loading':'Getting this payment ready...',
@@ -79,7 +79,7 @@ const en: Messages = {
  'home.hero1':'Big dreams start with','home.hero2':'small payments.',
  'home.heroDesc':'For spaza shops, small restaurants, food stores and informal traders, LocalPay makes QR and link payment requests easier from your phone.',
  'home.create':'Create a test account','home.how':'See how it works',
- 'home.flexible':'Flexible monthly plans','home.southAfrica':'Made for South Africa','home.simple':'Simple to use',
+ 'home.flexible':'R0 Starter plan','home.southAfrica':'Made for South Africa','home.simple':'Simple to use',
  'home.featuresTitle':'Everything you need to make the next sale easier.',
  'home.featuresDesc':'From groceries to lunch, a simple payment request can help your business.',
  'home.linksTitle':'Share a payment link','home.linksDesc':'Share a link on WhatsApp. Customers do not need a separate LocalPay app.',
@@ -108,7 +108,7 @@ const en: Messages = {
  'onboard.setup':'Set up your local business','onboard.business':'What is your business called?',
  'onboard.category':'Business type','onboard.province':'Province','onboard.town':'Your town or area',
  'onboard.open':'Open my dashboard','onboard.opening':'Setting things up...',
- 'onboard.almost':'ALMOST THERE','onboard.test':'Basic from R49/month · test mode (no subscription charges)',
+ 'onboard.almost':'ALMOST THERE','onboard.test':'Starter R0/month · test mode (no real payments)',
  'onboard.proof':'No card machine required for payment links',
  'onboard.error':'Could not finish setup.',
  'language.review':'Tshivenda wording is being reviewed. Confirm all payment details before continuing.'
@@ -212,7 +212,7 @@ const ve: Messages = {
  'onboard.setup':'Lugisani bindu ḽavho','onboard.business':'Dzina ḽa bindu ḽavho ndi ḽifhio?',
  'onboard.category':'Lushaka lwa bindu','onboard.province':'Vundu','onboard.town':'Ḓorobo kana fhethu hune vha vha hone',
  'onboard.open':'Vulani mbonalo ya bindu','onboard.opening':'Ri khou lugisa...',
- 'onboard.almost':'VHO NO VHA TSINI','onboard.test':'Basic u bva kha R49 nga nwedzi · mulingo (a hu na mbadelo dza subscription)',
+ 'onboard.almost':'VHO NO VHA TSINI','onboard.test':'Starter R0 nga nwedzi · mulingo (a hu na mbadelo dza vhukuma)',
  'onboard.proof':'A hu ṱoḓei mutshini wa garata kha linki dza mbadelo',
  'onboard.error':'A ro ngo kona u fhedza nzudzanyo.',
  'language.review':'Maipfi a Tshivenḓa a kha ḓi sedzuluswa. Kha vha khwaṱhisedze mafhungo a mbadelo.'
