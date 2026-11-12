@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
  ArrowDownLeft, ArrowRight, ArrowUpRight, BarChart3, Check, ChevronRight, CircleHelp,
- Clock3, Copy, CreditCard, Download, ExternalLink, LayoutDashboard, Link2, LogOut,
+ Clock3, Copy, CreditCard, Download, ExternalLink, LayoutDashboard, Link2, LogOut, Landmark,
  Menu, Plus, QrCode, RefreshCw, Search, Settings, ShieldCheck, Sparkles, Store,
  Wallet, X, Zap
 } from 'lucide-react';
@@ -14,12 +14,21 @@ const SalesAreaChart = dynamic(()=>import('./SalesAreaChart'), {ssr:false,loadin
 import { getSupabaseBrowser } from '../lib/supabase-browser';
 import {useLanguage} from '../lib/language';
 
-type View = 'overview' | 'payments' | 'qr-code' | 'transactions' | 'analytics' | 'subscription' | 'settings';
+type View = 'overview' | 'payments' | 'qr-code' | 'transactions' | 'analytics' | 'payouts' | 'subscription' | 'settings';
 type Merchant = { id:string; business_name:string; category:string|null; province:string|null; town:string|null };
 type PaymentLink = { id:string; token:string; amount_cents:number; description:string; active:boolean; created_at:string; expires_at:string; consumed_at:string|null };
 type Transaction = { id:string; reference:string; amount_cents:number; status:string; provider:string; created_at:string; payer_name:string|null; payer_email:string|null };
 type Summary = {gross_cents:number;successful_count:number;pending_count:number};
 type ChartDay = {date:string;total_cents:number;count:number};
+type PayoutRecord = {id:string;amount_cents:number;currency:string;status:string;created_at:string;settled_at:string|null};
+type PayoutInfo = {
+ currency:string;mode:'PAYSTACK_TEST';real_payouts_enabled:boolean;
+ bank_account_connected:boolean;bank_account_verified:boolean;
+ provider_multi_merchant_approved:boolean;
+ available_to_withdraw_cents:number;confirmed_real_settlements_cents:number;
+ verified_test_sales_cents:number;verified_test_sales_count:number;
+ payouts:PayoutRecord[];notice:string;
+};
 type PlanInfo = {plan:'basic'|'pro'|'pro_plus';name:string;price_cents:number;monthly_limit:number;used:number;remaining:number;next_reset:string;upgrade_request:{requested_plan:string;created_at:string}|null;billing_enabled:boolean};
 type ApiResult<T> = {data:T|null;error:string|null};
 const API='/api/backend';
@@ -31,6 +40,7 @@ const menu: {slug:View;label:string;icon:typeof LayoutDashboard}[]=[
  {slug:'qr-code',label:'My QR codes',icon:QrCode},
  {slug:'transactions',label:'Transactions',icon:CreditCard},
  {slug:'analytics',label:'Sales insights',icon:BarChart3},
+ {slug:'payouts',label:'Payouts',icon:Landmark},
  {slug:'subscription',label:'My plan',icon:Sparkles},
  {slug:'settings',label:'Business settings',icon:Settings}
 ];
@@ -69,6 +79,7 @@ export default function MerchantWorkspace({view}: {view:View}){
  const [profile,setProfile]=useState({business_name:'',category:'',province:'',town:''});
  const [qrSelected,setQrSelected]=useState('');
  const [planInfo,setPlanInfo]=useState<PlanInfo|null>(null);
+ const [payoutInfo,setPayoutInfo]=useState<PayoutInfo|null>(null);
  const [checkoutOrigin,setCheckoutOrigin]=useState('');
  // A payment URL must use a dedicated public production domain. Preview
  // deployment hosts are often protected by Vercel Authentication.
@@ -107,6 +118,7 @@ export default function MerchantWorkspace({view}: {view:View}){
   if(typeof data.transaction_count==='number')setTransactionCount(data.transaction_count);
   if(data.analytics)setChart(data.analytics.daily||[]);
   if(data.plan)setPlanInfo(data.plan);
+  if(view==='payouts')setPayoutInfo(await callApi<PayoutInfo>('/api/merchant/payouts',accessToken));
  }
  useEffect(()=>{
   let active=true;
@@ -235,6 +247,7 @@ export default function MerchantWorkspace({view}: {view:View}){
   'qr-code':{eyebrow:'SCAN. PAY. DONE.',title:'Your payment QR codes',subtitle:'Let your customers scan and pay straight from their phones.'},
   transactions:{eyebrow:'EVERY PAYMENT IN ONE PLACE',title:'Your transactions',subtitle:'Know what’s paid, what’s pending and what needs your attention.'},
   analytics:{eyebrow:'KNOW YOUR NUMBERS',title:'Sales insights',subtitle:'Simple numbers that help you make smarter business decisions.'},
+  payouts:{eyebrow:'PAYMENTS AND SETTLEMENTS',title:'Payouts',subtitle:'See verified test activity and understand when real bank settlements become available.'},
   subscription:{eyebrow:'GROW AT YOUR PACE',title:'Plans that fit your hustle',subtitle:'Track your monthly checkout limit and request more capacity as your business grows.'},
   settings:{eyebrow:'MAKE IT YOURS',title:'Business settings',subtitle:'Keep your business details current and familiar to customers.'}
  };
@@ -247,7 +260,7 @@ export default function MerchantWorkspace({view}: {view:View}){
    <Link href="/" className="lp-logo"><span className="lp-logo-icon"><Wallet size={22}/></span><span>localpay<span className="lp-logo-dot">.</span><small>MICRO BUSINESS</small></span></Link>
    <div className="lp-side-caption">YOUR WORKSPACE</div>
    <nav className="lp-side-nav" aria-label="Merchant navigation">
-    {menu.map(m=><Link key={m.slug} className={'lp-side-link '+(view===m.slug?'active':'')} href={navigate(m.slug)} onClick={()=>setSidebar(false)}><m.icon size={19}/>{t('dashboard.'+({'overview':'overview','payments':'payments','qr-code':'qr','transactions':'transactions','analytics':'analytics','subscription':'plan','settings':'settings'}[m.slug]))}{view===m.slug&&<ChevronRight size={15} className="lp-side-chevron"/>}</Link>)}
+    {menu.map(m=><Link key={m.slug} className={'lp-side-link '+(view===m.slug?'active':'')} href={navigate(m.slug)} onClick={()=>setSidebar(false)}><m.icon size={19}/>{t('dashboard.'+({'overview':'overview','payments':'payments','qr-code':'qr','transactions':'transactions','analytics':'analytics','payouts':'payouts','subscription':'plan','settings':'settings'}[m.slug]))}{view===m.slug&&<ChevronRight size={15} className="lp-side-chevron"/>}</Link>)}
    </nav>
    <div className="lp-side-bottom"><div className="lp-help"><ShieldCheck size={17}/><div><strong>Paystack test mode</strong><span>No real money is moving.</span></div></div>
     <button className="lp-side-link lp-logout" onClick={logout}><LogOut size={18}/> Sign out</button>
@@ -256,7 +269,7 @@ export default function MerchantWorkspace({view}: {view:View}){
   <div className="lp-main">
    <header className="lp-topbar"><button className="lp-menu-btn" aria-label="Open menu" onClick={()=>setSidebar(true)}><Menu/></button><div className="lp-breadcrumb">Workspace <ChevronRight size={14}/> <strong>{t('dashboard.'+({'overview':'overview','payments':'payments','qr-code':'qr','transactions':'transactions','analytics':'analytics','subscription':'plan','settings':'settings'}[view]))}</strong></div><div className="lp-top-right"><span className="lp-test-tag"><span className="lp-live-dot"/> TEST MODE</span><div className="lp-avatar">{displayName.slice(0,1).toUpperCase()}</div></div></header>
    <main className="lp-content">
-    <div className="lp-head-row"><div><div className="lp-eyebrow">{heading.eyebrow}</div><h1>{t('dashboard.'+({'overview':'welcome','payments':'paymentsTitle','qr-code':'qrTitle','transactions':'transactionsTitle','analytics':'analyticsTitle','subscription':'planTitle','settings':'settingsTitle'}[view]))}</h1><p>{heading.subtitle}</p></div>{view==='overview'&&<Link className="lp-primary" href="/dashboard/payments"><Plus size={18}/> {t('dashboard.createLink')}</Link>}{(view==='overview'||view==='transactions')&&<button className="lp-icon-btn" title={t('dashboard.refresh')} onClick={recheck} disabled={pending}><RefreshCw size={18}/></button>}</div>
+    <div className="lp-head-row"><div><div className="lp-eyebrow">{heading.eyebrow}</div><h1>{t('dashboard.'+({'overview':'welcome','payments':'paymentsTitle','qr-code':'qrTitle','transactions':'transactionsTitle','analytics':'analyticsTitle','payouts':'payoutsTitle','subscription':'planTitle','settings':'settingsTitle'}[view]))}</h1><p>{heading.subtitle}</p></div>{view==='overview'&&<Link className="lp-primary" href="/dashboard/payments"><Plus size={18}/> {t('dashboard.createLink')}</Link>}{(view==='overview'||view==='transactions')&&<button className="lp-icon-btn" title={t('dashboard.refresh')} onClick={recheck} disabled={pending}><RefreshCw size={18}/></button>}</div>
     {merchant&&<div className="lp-greeting"><span className="lp-greeting-icon"><Store size={18}/></span><div><strong>{displayName}</strong><span>{merchant.town||'South Africa'} · Your business workspace</span></div><span className="lp-good-badge"><Check size={13}/> Account ready</span></div>}
     {(view==='payments'||view==='qr-code')&&!checkoutOrigin&&<div className="lp-alert lp-alert-error" role="alert">Public payment links are temporarily unavailable. Configure the public FRONTEND_URL on Render so customers are sent to checkout instead of Vercel sign-in. Please do not distribute preview deployment links.</div>}
     {error&&<div className="lp-alert lp-alert-error" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}
@@ -272,6 +285,49 @@ export default function MerchantWorkspace({view}: {view:View}){
       <section className="lp-card lp-next-card"><div className="lp-card-head"><div><h2>Quick actions</h2><p>Everything you need for the next sale</p></div></div><Link href="/dashboard/payments" className="lp-action"><span className="lp-action-icon"><Plus size={20}/></span><span><strong>Request a payment</strong><small>Create a shareable link</small></span><ArrowRight size={17}/></Link><Link href="/dashboard/qr-code" className="lp-action"><span className="lp-action-icon"><QrCode size={20}/></span><span><strong>Show a QR code</strong><small>Let customers scan to pay</small></span><ArrowRight size={17}/></Link><Link href="/dashboard/transactions" className="lp-action"><span className="lp-action-icon"><CreditCard size={20}/></span><span><strong>Review transactions</strong><small>Check what’s been paid</small></span><ArrowRight size={17}/></Link><div className="lp-tip"><Zap size={18}/><span><strong>A little tip:</strong> Share a payment link on WhatsApp to make checkout easier for customers.</span></div></section></div>
      <section className="lp-card"><div className="lp-card-head"><div><h2>Recent activity</h2><p>Every payment, in plain sight</p></div><Link href="/dashboard/transactions" className="lp-small-link">View all <ArrowUpRight size={15}/></Link></div><TransactionTable transactions={recent}/></section>
     </>}
+    {view==='payouts'&&<div className="lp-payouts-page">
+      <div className="lp-alert lp-alert-error" role="status">
+        <ShieldCheck size={18}/> {t('payouts.testNotice')}
+      </div>
+      <div className="lp-stat-grid">
+       <article className="lp-stat"><div className="lp-stat-icon emerald"><Wallet size={19}/></div>
+        <div className="lp-stat-label">{t('payouts.withdrawable')}</div>
+        <div className="lp-stat-number">{money(payoutInfo?.available_to_withdraw_cents??0)}</div>
+        <div className="lp-stat-detail">{t('payouts.noWithdrawals')}</div></article>
+       <article className="lp-stat"><div className="lp-stat-icon blue"><Check size={19}/></div>
+        <div className="lp-stat-label">{t('payouts.testSales')}</div>
+        <div className="lp-stat-number">{money(payoutInfo?.verified_test_sales_cents??0)}</div>
+        <div className="lp-stat-detail">{payoutInfo?.verified_test_sales_count??0} {t('payouts.testTransactions')}</div></article>
+       <article className="lp-stat"><div className="lp-stat-icon violet"><Landmark size={19}/></div>
+        <div className="lp-stat-label">{t('payouts.settled')}</div>
+        <div className="lp-stat-number">{money(payoutInfo?.confirmed_real_settlements_cents??0)}</div>
+        <div className="lp-stat-detail">{t('payouts.noLiveSettlement')}</div></article>
+      </div>
+      <section className="lp-card" style={{marginTop:20}}>
+       <div className="lp-card-head"><div><h2>{t('payouts.method')}</h2><p>{t('payouts.methodDesc')}</p></div><Landmark size={24}/></div>
+       <div className="lp-link-list">
+        <div className="lp-link-row"><strong>{t('payouts.bankAccount')}</strong>
+        <span>{t('payouts.notConnected')}</span></div>
+        <div className="lp-link-row"><strong>{t('payouts.merchantVerification')}</strong>
+        <span>{t('payouts.notVerified')}</span></div>
+        <div className="lp-link-row"><strong>{t('payouts.providerApproval')}</strong>
+        <span>{t('payouts.notApproved')}</span></div>
+       </div>
+       <p className="lp-field-hint">{t('payouts.bankWarning')}</p>
+       <button type="button" className="lp-secondary" disabled title={t('payouts.notAvailable')}>
+        <ShieldCheck size={16}/> {t('payouts.withdrawDisabled')}
+       </button>
+      </section>
+      <section className="lp-card" style={{marginTop:20}}>
+       <div className="lp-card-head"><div><h2>{t('payouts.history')}</h2>
+       <p>{t('payouts.historyDescription')}</p></div></div>
+       {payoutInfo?.payouts?.length?<div className="lp-table-wrap"><table className="lp-table">
+       <thead><tr><th>{t('payouts.date')}</th><th>{t('payouts.amount')}</th><th>{t('payouts.status')}</th></tr></thead>
+       <tbody>{payoutInfo.payouts.map(p=><tr key={p.id}><td>{date(p.created_at)}</td>
+       <td>{money(p.amount_cents)}</td><td>{p.status}</td></tr>)}</tbody></table></div>:
+       <p>{t('payouts.noHistory')}</p>}
+      </section>
+    </div>}
     {(view==='payments'||view==='qr-code')&&<>
       {view==='payments'&&<div className="lp-columns lp-payment-columns"><section className="lp-card"><div className="lp-card-head"><div><h2>{t('dashboard.newPayment')}</h2><p>Simple as setting a price and sharing the link.</p></div><span className="lp-chip">NO CARD MACHINE</span></div><form className="lp-form" onSubmit={createLink}><label htmlFor="lp-amount">{t('common.amount')}</label><div className="lp-amount-field"><span>R</span><input id="lp-amount" type="number" step="0.01" min="1" max="100000" required value={amount} onChange={e=>setAmount(e.target.value)} placeholder="20.00"/></div><label htmlFor="lp-desc">{t('dashboard.description')}</label><input id="lp-desc" value={description} maxLength={180} onChange={e=>setDescription(e.target.value)} placeholder="e.g. Haircut, lunch or groceries"/><p className="lp-field-hint">{t('dashboard.linkNote')}</p><button className="lp-primary lp-full" disabled={pending} type="submit"><Plus size={18}/>{pending?t('common.wait'):t('dashboard.createLink')}</button></form></section><section className="lp-card lp-info-card"><div className="lp-info-graphic"><Link2 size={42}/></div><h2>Get paid without the awkward follow-ups.</h2><p>A customer can open your link on their phone, pay using the provider’s secure test checkout, and you can see the verified status right here.</p><div className="lp-info-foot"><ShieldCheck size={18}/> We only show payments as complete after server-side verification.</div></section></div>}
       {lastLink&&view==='payments'&&<section className="lp-card lp-new-link"><div><span className="lp-chip">JUST CREATED</span><h2>Your payment link is ready!</h2><p>{money(lastLink.amount_cents)} · {lastLink.description} · Expires {new Date(lastLink.expires_at).toLocaleString('en-ZA')}</p></div><div className="lp-share-line"><input readOnly value={shareUrl(lastLink)} aria-label="New payment link" placeholder="Public checkout domain not configured"/><button className="lp-secondary" disabled={!checkoutOrigin} onClick={()=>copy(shareUrl(lastLink))}><Copy size={16}/> Copy</button><a className="lp-secondary" aria-disabled={!checkoutOrigin} onClick={e=>{if(!checkoutOrigin)e.preventDefault();}} target="_blank" rel="noreferrer" href={checkoutOrigin?'https://wa.me/?text='+encodeURIComponent('You can pay me here: '+shareUrl(lastLink)):'#'}>WhatsApp <ExternalLink size={15}/></a></div></section>}
