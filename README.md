@@ -11,7 +11,7 @@ Designed specifically for informal traders, small restaurants and takeaways, loc
 - Fixed-amount payment links, shareable WhatsApp URLs and scan-to-pay QR codes
 - Paystack sandbox **hosted checkout**, signed webhook and server-side transaction verification
 - Printable test receipts and CSV transaction report
-- Sales analytics, business settings and a proposed single R49/month subscription (billing disabled)
+- Sales analytics, business settings and proposed Basic R49 (200 checkout attempts/month), Pro R99 (1,000) and Pro Plus R199 (5,000) plans (billing disabled)
 - Restricted platform admin area with server-verified roles
 
 **No live money, merchant settlement, production subscriptions or marketplace transfers are supported.**
@@ -153,3 +153,16 @@ gunicorn app:app --bind 0.0.0.0:5000
 ```
 
 Set local environment variables in non-committed `.env.local` and `.env` files based on the provided examples.
+
+
+## Monthly checkout limits and upgrade requests
+
+- Basic: **R49/month**, **200 initiated Paystack checkout sessions per UTC calendar month**.
+- Pro: **R99/month**, **1,000 checkout sessions**.
+- Pro Plus: **R199/month**, **5,000 checkout sessions**.
+- These count checkout attempts (including abandoned, failed and provider-error attempts); QR/link creation is unlimited. Limits reset at **00:00 UTC on the 1st of each month**.
+- Postgres function `localpay_create_checkout_attempt` locks the merchant and atomically reserves a transaction, preventing concurrent overrun. It is callable only by `service_role`, through the authenticated Flask backend.
+- All new and existing merchants have Basic sandbox limits unless an authorised back-office action explicitly activates another tier in `merchant_plan_entitlements`.
+- The **My plan** dashboard shows actual server-side usage and submits a non-billing upgrade request. An upgrade request **does not change the plan or take money**. Activation/paid billing requires a verified subscription billing integration and operational approval.
+- Apply Supabase migration `localpay_tiered_monthly_checkout_quotas` before deploying the backend. The migration has already been applied to the linked LocalPay Supabase project.
+- Paystack card processing fees for merchant sales are separate from the software subscription.
