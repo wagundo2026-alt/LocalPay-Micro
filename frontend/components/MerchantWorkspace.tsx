@@ -33,7 +33,12 @@ const menu: {slug:View;label:string;icon:typeof LayoutDashboard}[]=[
 ];
 async function callApi<T>(path:string,token:string,options?:RequestInit):Promise<T>{
  if(!API)throw new Error('Backend URL not configured. Add NEXT_PUBLIC_API_URL in Vercel.');
- const res=await fetch(API+path,{...options,headers:{'Authorization':'Bearer '+token,...(options?.body?{'Content-Type':'application/json'}:{}),...options?.headers},cache:'no-store'});
+ let res: Response;
+ try {
+  res=await fetch(API+path,{...options,headers:{'Authorization':'Bearer '+token,...(options?.body?{'Content-Type':'application/json'}:{}),...options?.headers},cache:'no-store'});
+ } catch {
+  throw new Error('Cannot connect to LocalPay’s backend. Check that Render is Live and the Vercel NEXT_PUBLIC_API_URL points to https://localpay-micro1.onrender.com. If Render is live, check its FRONTEND_ORIGINS/CORS setting.');
+ }
  const data:ApiResult<T>=await res.json().catch(()=>({data:null,error:'The server did not return a valid response.'}));
  if(!res.ok)throw new Error(data.error || 'Unable to load. Please try again.');
  return data.data as T;
@@ -149,6 +154,7 @@ export default function MerchantWorkspace({view}: {view:View}){
  };
  const heading=headings[view];
  if(loading)return <main className="lp-loading"><div className="lp-loader"/><h2>Getting your shop ready...</h2><p>Just fetching your business information.</p></main>;
+ if(!merchant)return <main className="lp-loading" style={{padding:24}}><div className="lp-empty-icon"><RefreshCw size={25}/></div><h2>We couldn’t load your business yet</h2><p style={{maxWidth:520,textAlign:'center'}}>{error||'Your dashboard is temporarily unavailable.'}</p><div style={{display:'flex',gap:12,marginTop:22,flexWrap:'wrap',justifyContent:'center'}}><button className="lp-primary" onClick={()=>window.location.reload()}>Try again</button><Link className="lp-secondary" href="/onboarding">Set up my business</Link></div><p style={{marginTop:16,fontSize:12,color:'#81949c'}}>Your sales figures are not shown until the backend confirms the data.</p></main>;
  return <div className="lp-app">
   {sidebar&&<button className="lp-overlay" aria-label="Close menu" onClick={()=>setSidebar(false)}/>}
   <aside className={'lp-sidebar '+(sidebar?'lp-sidebar-open':'')}>
