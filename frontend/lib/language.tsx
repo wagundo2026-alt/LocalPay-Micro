@@ -61,6 +61,14 @@ const en: Messages = {
  'dashboard.noPayer':'Not provided','dashboard.disable':'Disable',
  'dashboard.copy':'Copy','dashboard.download':'Download','dashboard.logout':'Log out',
  'dashboard.refresh':'Refresh','dashboard.test':'These are test transactions, not real settlements.',
+ 'onboard.heading':'Tell us about your business',
+ 'onboard.description':'Tell us about your shop so we can set up your merchant dashboard.',
+ 'onboard.setup':'Set up your local business','onboard.business':'What is your business called?',
+ 'onboard.category':'Business type','onboard.province':'Province','onboard.town':'Your town or area',
+ 'onboard.open':'Open my dashboard','onboard.opening':'Setting things up...',
+ 'onboard.almost':'ALMOST THERE','onboard.test':'Basic from R49/month · test mode (no subscription charges)',
+ 'onboard.proof':'No card machine required for payment links',
+ 'onboard.error':'Could not finish setup.',
  'language.review':'Tshivenda wording is being reviewed. Confirm all payment details before continuing.'
 };
 
@@ -113,6 +121,14 @@ const ve: Messages = {
  'dashboard.noPayer':'A zwo ngo ṋekedzwa','dashboard.disable':'Imisani','dashboard.copy':'Kopani',
  'dashboard.download':'Dzhiani','dashboard.logout':'Bvani','dashboard.refresh':'Dovhololani',
  'dashboard.test':'Idzi ndi mbadelo dza mulingo, a si dza tshelede ya vhukuma.',
+ 'onboard.heading':'Kha vha ri vhudze nga bindu ḽavho',
+ 'onboard.description':'Kha vha ri vhudze nga ha vhengele ḽavho uri ri lugise mbonalo ya bindu.',
+ 'onboard.setup':'Lugisani bindu ḽavho','onboard.business':'Dzina ḽa bindu ḽavho ndi ḽifhio?',
+ 'onboard.category':'Lushaka lwa bindu','onboard.province':'Vundu','onboard.town':'Ḓorobo kana fhethu hune vha vha hone',
+ 'onboard.open':'Vulani mbonalo ya bindu','onboard.opening':'Ri khou lugisa...',
+ 'onboard.almost':'VHO NO VHA TSINI','onboard.test':'Basic u bva kha R49 nga nwedzi · mulingo (a hu na mbadelo dza subscription)',
+ 'onboard.proof':'A hu ṱoḓei mutshini wa garata kha linki dza mbadelo',
+ 'onboard.error':'A ro ngo kona u fhedza nzudzanyo.',
  'language.review':'Maipfi a Tshivenḓa a kha ḓi sedzuluswa. Kha vha khwaṱhisedze mafhungo a mbadelo.'
 };
 
