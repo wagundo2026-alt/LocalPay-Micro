@@ -160,7 +160,7 @@ def dashboard_bootstrap():
 
     if view in {"overview", "transactions"}:
         records = (db.table("transactions")
-            .select("id,reference,amount_cents,status,provider,created_at", count="exact")
+            .select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email", count="exact")
             .eq("merchant_id", mid).order("created_at",desc=True).limit(100).execute())
         payload["transactions"] = records.data
         payload["transaction_count"] = int(records.count or 0)
@@ -459,7 +459,7 @@ def payment_verify(reference):
 @app.get("/api/transactions")
 @requires_merchant
 def transactions():
-    return reply(get_db().table("transactions").select("*").eq("merchant_id", request.merchant["id"])
+    return reply(get_db().table("transactions").select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email").eq("merchant_id", request.merchant["id"])
                  .order("created_at", desc=True).limit(100).execute().data)
 
 @app.get("/api/dashboard/summary")
