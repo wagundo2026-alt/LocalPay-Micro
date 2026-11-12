@@ -84,3 +84,19 @@
 
 
 .lp-legal-page{max-width:790px;margin:0 auto;padding:70px 25px 95px;background:#fff}.lp-legal-page h1{font-size:clamp(36px,5vw,54px);font-weight:850;letter-spacing:-.045em;margin:14px 0}.lp-legal-page .lp-legal-updated{color:#84979d;font-size:12px;margin:0 0 45px}.lp-legal-page section{border-top:1px solid #e3ebed;padding:25px 0}.lp-legal-page section h2{font-size:19px;font-weight:850;margin:0 0 11px}.lp-legal-page section p{color:#677f87;font-size:14px;line-height:1.85;margin:0}.auth-check a{color:#087d5b;text-decoration:underline;font-weight:800}
+
+/* One transparent subscription plan for local informal businesses */
+.lp-subscription-grid{max-width:1030px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+.lp-subscription-story{background:#f0faf5;display:flex;flex-direction:column;justify-content:center;padding:36px;border-color:#d5ebdf}
+.lp-subscription-story>h2{font-size:30px;line-height:1.2;letter-spacing:-.04em;margin:6px 0 22px}
+.lp-subscription-type{display:flex;align-items:flex-start;gap:14px;padding:15px 0;border-top:1px solid #d9eae3}
+.lp-subscription-type>svg{color:#088563;flex-shrink:0;margin-top:3px}
+.lp-subscription-type strong,.lp-subscription-type span{display:block}
+.lp-subscription-type strong{font-size:14px;margin-bottom:4px}
+.lp-subscription-type span{font-size:12px;color:#66837a;line-height:1.6}
+.lp-subscription-dashboard{max-width:740px;padding:36px}
+.lp-subscription-dashboard>h2{font-size:31px;margin:20px 0 0}
+.lp-subscription-dashboard>p:not(.lp-plan-price){color:#71868b;font-size:14px;line-height:1.7;max-width:570px}
+.lp-subscription-dashboard .lp-plan-features{padding-bottom:8px}
+.lp-subscription-dashboard .lp-secondary{margin-top:22px}
+@media(max-width:800px){.lp-subscription-grid{grid-template-columns:1fr}.lp-subscription-story,.lp-subscription-dashboard{padding:24px}}
