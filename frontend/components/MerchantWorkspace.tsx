@@ -18,6 +18,7 @@ type PaymentLink = { id:string; token:string; amount_cents:number; description:s
 type Transaction = { id:string; reference:string; amount_cents:number; status:string; provider:string; created_at:string };
 type Summary = {gross_cents:number;successful_count:number;pending_count:number};
 type ChartDay = {date:string;total_cents:number;count:number};
+type PlanInfo = {plan:'basic'|'pro'|'pro_plus';name:string;price_cents:number;monthly_limit:number;used:number;remaining:number;next_reset:string;upgrade_request:{requested_plan:string;created_at:string}|null;billing_enabled:boolean};
 type ApiResult<T> = {data:T|null;error:string|null};
 const API='/api/backend';
 const money=(cents:number)=>new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(cents/100);
@@ -63,16 +64,19 @@ export default function MerchantWorkspace({view}: {view:View}){
  const [lastLink,setLastLink]=useState<PaymentLink|null>(null);
  const [profile,setProfile]=useState({business_name:'',category:'',province:'',town:''});
  const [qrSelected,setQrSelected]=useState('');
+ const [planInfo,setPlanInfo]=useState<PlanInfo|null>(null);
  const shareUrl=(link:PaymentLink)=>typeof window==='undefined'?'':window.location.origin+'/pay/'+link.token;
  const navigate=(slug:View)=>slug==='overview'?'/dashboard':'/dashboard/'+slug;
  async function refresh(accessToken:string){
-  const [m,s,l,t,a]=await Promise.all([
+  const [m,s,l,t,a,p]=await Promise.all([
    callApi<Merchant>('/api/merchant/me',accessToken),
    callApi<Summary>('/api/dashboard/summary',accessToken),
    callApi<PaymentLink[]>('/api/payment-links',accessToken),
    callApi<Transaction[]>('/api/transactions',accessToken),
    callApi<{daily:ChartDay[]}>('/api/dashboard/analytics',accessToken),
+   callApi<PlanInfo>('/api/merchant/plan',accessToken),
   ]);
+  setPlanInfo(p);
   setMerchant(m);setProfile({business_name:m.business_name,category:m.category||'',province:m.province||'',town:m.town||''});
   setSummary(s);setLinks(l);setTransactions(t);setChart(a.daily||[]);
  }
@@ -115,6 +119,16 @@ export default function MerchantWorkspace({view}: {view:View}){
    setLinks(prev=>[created,...prev]);setLastLink(created);setQrSelected(created.id);setDescription('');
    setSuccess('Done! Your new payment link is ready to share.');
   }catch(e){setError(e instanceof Error?e.message:'Unable to create link.');}
+  finally{setPending(false);}
+ }
+ async function requestUpgrade(plan:'pro'|'pro_plus'){
+  if(!token || pending)return;
+  setPending(true);setError('');setSuccess('');
+  try{
+   const result=await callApi<{requested_plan:string;status:string;message:string}>('/api/merchant/upgrade-request',token,{method:'POST',body:JSON.stringify({plan})});
+   setSuccess(result.message);
+   setPlanInfo(await callApi<PlanInfo>('/api/merchant/plan',token));
+  }catch(e){setError(e instanceof Error?e.message:'Could not request an upgrade.');}
   finally{setPending(false);}
  }
  async function saveProfile(e:FormEvent<HTMLFormElement>){
@@ -180,7 +194,7 @@ export default function MerchantWorkspace({view}: {view:View}){
   'qr-code':{eyebrow:'SCAN. PAY. DONE.',title:'Your payment QR codes',subtitle:'Let your customers scan and pay straight from their phones.'},
   transactions:{eyebrow:'EVERY PAYMENT IN ONE PLACE',title:'Your transactions',subtitle:'Know what’s paid, what’s pending and what needs your attention.'},
   analytics:{eyebrow:'KNOW YOUR NUMBERS',title:'Sales insights',subtitle:'Simple numbers that help you make smarter business decisions.'},
-  subscription:{eyebrow:'GROW AT YOUR PACE',title:'Plans that fit your hustle',subtitle:'Start for free. Upgrade only when your business needs more.'},
+  subscription:{eyebrow:'GROW AT YOUR PACE',title:'Plans that fit your hustle',subtitle:'Track your monthly checkout limit and request more capacity as your business grows.'},
   settings:{eyebrow:'MAKE IT YOURS',title:'Business settings',subtitle:'Keep your business details current and familiar to customers.'}
  };
  const heading=headings[view];
@@ -253,18 +267,37 @@ export default function MerchantWorkspace({view}: {view:View}){
     </>}
     {view==='transactions'&&<section className="lp-card"><div className="lp-card-head"><div><h2>Payment history</h2><p>Showing verified and pending test transactions</p></div><button className="lp-secondary" onClick={exportCsv} disabled={pending}><Download size={16}/> Download CSV</button></div><div className="lp-table-toolbar"><div className="lp-search"><Search size={17}/><input aria-label="Search transactions" placeholder="Search reference or provider" value={query} onChange={e=>setQuery(e.target.value)}/></div><select className="lp-select lp-filter" aria-label="Filter transaction status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="successful">Successful</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="refunded">Refunded</option></select></div><TransactionTable transactions={filtered}/></section>}
     {view==='analytics'&&<><div className="lp-stat-grid"><article className="lp-stat"><div className="lp-stat-icon emerald"><Wallet size={19}/></div><div className="lp-stat-label">Total verified test sales</div><div className="lp-stat-number">{money(summary.gross_cents)}</div></article><article className="lp-stat"><div className="lp-stat-icon blue"><CreditCard size={19}/></div><div className="lp-stat-label">Successful payments</div><div className="lp-stat-number">{summary.successful_count}</div></article><article className="lp-stat"><div className="lp-stat-icon amber"><Clock3 size={19}/></div><div className="lp-stat-label">Pending payments</div><div className="lp-stat-number">{summary.pending_count}</div></article><article className="lp-stat"><div className="lp-stat-icon violet"><ArrowUpRight size={19}/></div><div className="lp-stat-label">Average paid sale</div><div className="lp-stat-number">{money(paid.length?Math.round(summary.gross_cents/paid.length):0)}</div></article></div><section className="lp-card lp-chart-card lp-large-chart"><div className="lp-card-head"><div><h2>How sales are growing</h2><p>Verified test sales by day (ZAR)</p></div></div>{days.length?<div className="lp-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={days}><CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e5edf0"/><XAxis dataKey="day" tick={{fontSize:11,fill:'#6a7e87'}} tickLine={false} axisLine={false}/><Tooltip formatter={(v: unknown)=>money((Number(v)||0)*100)}/><Area dataKey="sales" type="monotone" stroke="#059669" fill="#d1fae5" strokeWidth={3}/></AreaChart></ResponsiveContainer></div>:<Empty icon={BarChart3} title="A fresh start" description="Your sales chart will grow as payments are verified."/>}</section><div className="lp-tip lp-wide-tip"><CircleHelp size={18}/> These figures are test transactions. They are not evidence of real sales or settlements.</div></>}
-    {view==='subscription'&&<section className="lp-card lp-subscription-dashboard">
-      <div className="lp-eyebrow">ONE STRAIGHTFORWARD SUBSCRIPTION</div>
-      <span className="lp-chip">PROPOSED · NOT YET BILLING</span>
-      <h2>LocalPay Subscription</h2>
-      <p className="lp-plan-price">R49<small>/month · proposed</small></p>
-      <p>For spaza shop owners, small restaurants, takeaway sellers, local food stores and informal traders who want simple digital payment tools.</p>
-      <div className="lp-plan-features">
-       {['Payment links and printable QR codes','Transaction history and test receipts','Sales overview and downloadable reports','Manage your business from a phone'].map(f=><div key={f}><Check size={16}/>{f}</div>)}
-      </div>
-      <div className="lp-tip lp-wide-tip"><ShieldCheck size={18}/> This subscription is part of our proposed business model. Billing is not enabled, no subscription charge is taken, and test payments do not transfer real funds.</div>
-      <Link className="lp-secondary" href="/pricing">View subscription details <ArrowRight size={16}/></Link>
-     </section>}
+    {view==='subscription'&&<>
+     <section className="lp-card lp-subscription-dashboard">
+      <div className="lp-eyebrow">YOUR MONTHLY CHECKOUT ALLOWANCE</div>
+      <h2>{planInfo?.name||'Basic'} plan <span className="lp-chip">TEST MODE</span></h2>
+      <p className="lp-plan-price">{money(planInfo?.price_cents||4900)}<small>/month · proposed</small></p>
+      <p><strong>{planInfo?.used??0} of {planInfo?.monthly_limit??200}</strong> Paystack checkout attempts used this month · <strong>{planInfo?.remaining??200} remaining</strong></p>
+      <div className="lp-quota-track" role="progressbar" aria-label="Monthly checkout allowance used" aria-valuenow={planInfo?.used??0} aria-valuemin={0} aria-valuemax={planInfo?.monthly_limit??200}><div style={{width:((planInfo?.used??0)/(planInfo?.monthly_limit||200)*100)+'%'}}/></div>
+      <p className="lp-field-hint">Limits reset at 00:00 UTC on the first day of each month (next reset: {planInfo?.next_reset?new Date(planInfo.next_reset).toLocaleDateString('en-ZA'):'next month'}). Failed and abandoned checkout attempts count. Generating a QR or link does not consume an attempt.</p>
+      {planInfo?.remaining===0&&<div className="lp-alert lp-alert-error">You have reached your monthly checkout limit. Request a higher plan or wait for the next monthly reset.</div>}
+      {planInfo?.upgrade_request&&<div className="lp-tip lp-wide-tip"><Clock3 size={17}/> Your {planInfo.upgrade_request.requested_plan.replace('_',' ')} upgrade request is pending. Your current quota stays the same until an authorised activation. No payment has been taken.</div>}
+     </section>
+     <div className="lp-plan-grid">
+      {([
+       {key:'basic' as const,name:'Basic',price:4900,limit:200,subtitle:'For small stalls and start-up traders',features:['Payment links and QR codes','Basic dashboard and sales records']},
+       {key:'pro' as const,name:'Pro',price:9900,limit:1000,subtitle:'For busy spaza shops and takeaways',features:['Everything in Basic','Downloadable reports and insights']},
+       {key:'pro_plus' as const,name:'Pro Plus',price:19900,limit:5000,subtitle:'For higher-volume shops and restaurants',features:['Everything in Pro','More monthly checkout capacity']}
+      ]).map(p=><article key={p.key} className={'lp-card lp-plan '+(planInfo?.plan===p.key?'lp-plan-active':'')}>
+        <span className="lp-chip">{planInfo?.plan===p.key?'CURRENT SANDBOX PLAN':'PROPOSED UPGRADE'}</span>
+        <h2>{p.name}</h2><p className="lp-plan-price">{money(p.price)}<small>/month</small></p>
+        <p><strong>{p.limit.toLocaleString('en-ZA')}</strong> checkout attempts per month</p>
+        <p>{p.subtitle}</p>
+        <div className="lp-plan-features">{p.features.map(f=><div key={f}><Check size={16}/>{f}</div>)}</div>
+        {planInfo?.plan===p.key?<button type="button" className="lp-primary lp-full" disabled>Current plan</button>:
+          p.key!=='basic'&&(!planInfo || (p.key==='pro'&&planInfo.plan==='pro_plus')||planInfo.upgrade_request)?
+            <button type="button" className="lp-primary lp-full" disabled>{planInfo?.upgrade_request?'Upgrade request pending':'Not available'}</button>:
+          p.key==='basic'?<button type="button" className="lp-primary lp-full" disabled>Lower plan</button>:
+          <button type="button" className="lp-primary lp-full" disabled={pending} onClick={()=>requestUpgrade(p.key as 'pro'|'pro_plus')}>{pending?'Requesting…':'Request upgrade'} <ArrowRight size={16}/></button>}
+       </article>)}
+     </div>
+     <div className="lp-tip lp-wide-tip"><ShieldCheck size={18}/> All plans are currently proposed and in Paystack sandbox mode. No subscription fee is collected. Upgrade requests do not activate higher tiers automatically. Payment-provider transaction fees are separate.</div>
+    </>}
     {view==='settings'&&<section className="lp-card lp-settings-card"><div className="lp-card-head"><div><h2>Your business details</h2><p>This is the name your customers will recognize on checkout.</p></div><Store size={23} color="#059669"/></div><form className="lp-form" onSubmit={saveProfile}><label htmlFor="setting-business">Business name</label><input id="setting-business" required minLength={2} maxLength={100} value={profile.business_name} onChange={e=>setProfile(p=>({...p,business_name:e.target.value}))}/><label htmlFor="setting-category">Business category</label><input id="setting-category" value={profile.category} maxLength={80} onChange={e=>setProfile(p=>({...p,category:e.target.value}))} placeholder="e.g. Spaza shop, Salon"/><div className="lp-two-fields"><div><label htmlFor="setting-town">Town / Area</label><input id="setting-town" value={profile.town} maxLength={80} onChange={e=>setProfile(p=>({...p,town:e.target.value}))}/></div><div><label htmlFor="setting-province">Province</label><input id="setting-province" value={profile.province} maxLength={80} onChange={e=>setProfile(p=>({...p,province:e.target.value}))}/></div></div><label>Merchant ID (read-only)</label><input value={merchant?.id||''} readOnly/><button className="lp-primary" disabled={pending} type="submit"><Check size={18}/>{pending?'Saving...':'Save business details'}</button></form></section>}
     <p className="lp-bottom-note"><ShieldCheck size={15}/> LocalPay Micro is currently running in sandbox mode. Do not accept real payments until your payment provider approves the merchant flow.</p>
    </main>
