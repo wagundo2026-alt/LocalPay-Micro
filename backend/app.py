@@ -16,11 +16,18 @@ from flask_limiter.util import get_remote_address
 from supabase import create_client
 
 app = Flask(__name__)
-limiter = Limiter(get_remote_address, app=app, default_limits=[])
-# Accept explicitly configured origins plus LocalPay's own Vercel preview deployments.
-# API is Bearer-token authenticated, never cookie-credentialed cross-origin.
+# Reject oversized request bodies before parsing JSON or signed webhooks.
+app.config["MAX_CONTENT_LENGTH"] = 128 * 1024
+app.config["MAX_FORM_MEMORY_SIZE"] = 16 * 1024
+# Per-worker rate limiting in test mode; set RATELIMIT_STORAGE_URI to Redis
+# for shared limits across production Gunicorn workers.
+limiter = Limiter(
+    get_remote_address, app=app, default_limits=[],
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+)
+# Browsers must use explicitly approved origins; production defaults do not
+# trust every preview deployment (including third-party fork previews).
 origins = [x.strip().rstrip("/") for x in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
-origins.append(r"^https://local-pay-micro(?:-[a-z0-9-]+)?\\.vercel\\.app$")
 CORS(app, resources={r"/api/*": {"origins": origins}}, supports_credentials=False,
      allow_headers=["Authorization", "Content-Type"], methods=["GET", "POST", "PATCH", "OPTIONS"])
 URL = os.getenv("SUPABASE_URL", "").rstrip("/")
@@ -195,7 +202,16 @@ def dashboard_bootstrap():
         }
     return reply(payload)
 
+@app.after_request
+def security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 @app.post("/api/merchant/onboard")
+@limiter.limit("8 per hour")
 @requires_user
 def onboard():
     db = get_db()
@@ -294,6 +310,7 @@ def request_plan_upgrade():
                   "message": "Upgrade request received. Your plan remains unchanged until approved and activated. No charge was made."}, 201)
 
 @app.post("/api/payment-links")
+@limiter.limit("30 per minute")
 @requires_merchant
 def new_link():
     body = request.get_json(silent=True) or {}
@@ -314,7 +331,7 @@ def payment_links():
                  .eq("merchant_id", request.merchant["id"]).order("created_at", desc=True).execute().data)
 
 @app.get("/api/checkout/<token>")
-@limiter.limit("60 per minute")
+@limiter.limit("30 per minute")
 def checkout(token):
     db = get_db()
     if not db:
@@ -328,7 +345,7 @@ def checkout(token):
                   "amount_cents": link["amount_cents"], "description": link["description"], "mode": "DEMO"})
 
 @app.post("/api/payments/initialize")
-@limiter.limit("10 per minute")
+@limiter.limit("6 per minute; 30 per hour")
 def initialize_payment():
     """Initialize sandbox payment using a server-trusted payment link and Paystack checkout."""
     db = get_db()
@@ -394,7 +411,7 @@ def demo_complete():
     return reply({"reference": reference, "status": "successful", "mode": "DEMO"})
 
 @app.get("/api/payments/verify/<reference>")
-@limiter.limit("30 per minute")
+@limiter.limit("20 per minute")
 def payment_verify(reference):
     db = get_db()
     if db is None:
@@ -555,4 +572,4 @@ def admin_transactions():
     return reply(rows)
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
+    app.run(port=5000, debug=False)
