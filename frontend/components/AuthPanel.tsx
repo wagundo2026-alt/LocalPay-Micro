@@ -31,7 +31,7 @@ export default function AuthPanel({ mode }: { mode: Mode }) {
     try {
       const supabase = getSupabaseBrowser();
       if (isForgot) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin + '/auth/update-password' });
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin + '/auth/callback?next=/auth/update-password' });
         if (error) throw error;
         setNotice('If this email is registered, a password reset link will arrive shortly. Please check your inbox and spam folder.');
       } else if (isRegister) {
