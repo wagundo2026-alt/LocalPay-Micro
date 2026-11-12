@@ -151,9 +151,11 @@ def dashboard_bootstrap():
                             .limit(500).execute().data)
 
     if view in {"overview", "transactions"}:
-        payload["transactions"] = (db.table("transactions")
-            .select("id,reference,amount_cents,status,provider,created_at")
-            .eq("merchant_id", mid).order("created_at",desc=True).limit(100).execute().data)
+        records = (db.table("transactions")
+            .select("id,reference,amount_cents,status,provider,created_at", count="exact")
+            .eq("merchant_id", mid).order("created_at",desc=True).limit(100).execute())
+        payload["transactions"] = records.data
+        payload["transaction_count"] = int(records.count or 0)
 
     if view in {"overview", "analytics"}:
         entries = (db.table("transactions")
