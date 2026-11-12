@@ -11,11 +11,14 @@ from functools import wraps
 from flask import Flask, request, jsonify, Response
 from paystack import PaystackError, initialize as paystack_initialize, reconcile as paystack_reconcile, authentic_webhook
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import jwt
 from jwt import PyJWKClient
 from supabase import create_client
 
 app = Flask(__name__)
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
 origins = [x.strip() for x in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
 CORS(app, origins=origins, supports_credentials=False)
 URL = os.getenv("SUPABASE_URL", "").rstrip("/")
@@ -143,6 +146,7 @@ def payment_links():
                  .eq("merchant_id", request.merchant["id"]).order("created_at", desc=True).execute().data)
 
 @app.get("/api/checkout/<token>")
+@limiter.limit("60 per minute")
 def checkout(token):
     db = get_db()
     if not db:
@@ -156,6 +160,7 @@ def checkout(token):
                   "amount_cents": link["amount_cents"], "description": link["description"], "mode": "DEMO"})
 
 @app.post("/api/payments/initialize")
+@limiter.limit("10 per minute")
 def initialize_payment():
     """Initialize sandbox payment using a server-trusted payment link and Paystack checkout."""
     db = get_db()
@@ -214,6 +219,7 @@ def demo_complete():
     return reply({"reference": reference, "status": "successful", "mode": "DEMO"})
 
 @app.get("/api/payments/verify/<reference>")
+@limiter.limit("30 per minute")
 def payment_verify(reference):
     db = get_db()
     if db is None:
@@ -302,6 +308,7 @@ def subscriptions():
                   {"name": "Business", "price_cents": 9900}])
 
 @app.post("/api/webhooks/payments")
+@limiter.limit("120 per minute")
 def webhook():
     """Authenticate raw bytes first, then verify Paystack directly before crediting."""
     if not os.getenv("PAYSTACK_SECRET_KEY", "").startswith("sk_test_"):
