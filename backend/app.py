@@ -145,7 +145,7 @@ def dashboard_bootstrap():
     calculated from server-side, verified transaction status; never cached.
     """
     view = request.args.get("view", "overview")
-    allowed = {"overview", "payments", "qr-code", "transactions", "analytics", "subscription", "settings"}
+    allowed = {"overview", "payments", "qr-code", "transactions", "analytics", "payouts", "subscription", "settings"}
     if view not in allowed:
         return reply(status=400, error="Unknown workspace view")
     db = get_db()
