@@ -13,7 +13,7 @@ const PUBLIC_READ = [
   /^api\/receipts\/LPM-[a-f0-9]{32}$/,
 ];
 const PRIVATE_READ = [
-  /^api\/merchant\/me$/, /^api\/merchant\/plan$/,
+  /^api\/merchant\/me$/, /^api\/merchant\/plan$/, /^api\/merchant\/payouts$/,
   /^api\/payment-links$/, /^api\/transactions$/, /^api\/transactions\/export\.csv$/,
   /^api\/dashboard\/(bootstrap|summary|analytics)$/,
   /^api\/subscriptions$/, /^api\/admin\/(summary|merchants|transactions)$/,
