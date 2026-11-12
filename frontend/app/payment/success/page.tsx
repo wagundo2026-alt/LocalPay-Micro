@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState,Suspense} from 'react';import {useSearchParams} from 'next/navigation';import Link from 'next/link';import {CheckCircle2,Clock3,ShieldCheck} from 'lucide-react';
-const API=(process.env.NEXT_PUBLIC_API_URL||'').replace(/\/$/,'');
+const API='/api/backend';
 function Result(){const params=useSearchParams();const ref=params.get('reference')||'';const [status,setStatus]=useState('checking');const [error,setError]=useState('');
  useEffect(()=>{if(!/^LPM-[a-f0-9]{32}$/.test(ref)){setStatus('error');setError('Invalid payment reference.');return;}
  let active=true;let timer:ReturnType<typeof setTimeout>;
