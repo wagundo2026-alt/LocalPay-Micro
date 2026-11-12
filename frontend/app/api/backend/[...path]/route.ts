@@ -20,6 +20,7 @@ const PRIVATE_READ = [
 ];
 const PRIVATE_WRITE = [
   /^api\/merchant\/(onboard|upgrade-request)$/, /^api\/payment-links$/,
+  /^api\/payment-links\/[0-9a-fA-F-]{36}\/revoke$/,
   /^api\/merchant\/me$/,
 ];
 const PUBLIC_WRITE = [/^api\/payments\/initialize$/];
