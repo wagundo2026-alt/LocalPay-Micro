@@ -216,6 +216,43 @@ def security_headers(response):
     response.headers["Cache-Control"] = "no-store"
     return response
 
+@app.get("/api/merchant/payouts")
+@requires_merchant
+@limiter.limit("30 per minute")
+def merchant_payouts():
+    """Provider-confirmed payouts only; test checkout volume is never withdrawable."""
+    db = get_db()
+    merchant_id = request.merchant["id"]
+    # All existing Paystack checkouts are TEST-only. These numbers are
+    # explicitly separate from money available to withdraw or settle.
+    test_rows = (db.table("transactions")
+                 .select("amount_cents,status")
+                 .eq("merchant_id",merchant_id)
+                 .eq("provider","paystack")
+                 .eq("status","successful").execute().data)
+    verified_test_cents = sum(int(row["amount_cents"]) for row in test_rows)
+    # This table must only be populated by future authenticated, provider-
+    # reconciled server jobs, never browser requests or checkout callbacks.
+    payouts = (db.table("merchant_payouts")
+               .select("id,amount_cents,currency,status,created_at,settled_at")
+               .eq("merchant_id",merchant_id)
+               .order("created_at",desc=True)
+               .limit(100).execute().data)
+    return reply({
+        "currency":"ZAR",
+        "mode":"PAYSTACK_TEST",
+        "real_payouts_enabled":False,
+        "bank_account_connected":False,
+        "bank_account_verified":False,
+        "provider_multi_merchant_approved":False,
+        "available_to_withdraw_cents":0,
+        "confirmed_real_settlements_cents":0,
+        "verified_test_sales_cents":verified_test_cents,
+        "verified_test_sales_count":len(test_rows),
+        "payouts":payouts,
+        "notice":"Test payments are not real funds. Payouts and withdrawals are disabled until provider approval, merchant verification and production reconciliation."
+    })
+
 @app.post("/api/merchant/onboard")
 @limiter.limit("8 per hour")
 @requires_user
