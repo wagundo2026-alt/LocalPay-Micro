@@ -1,3 +1,44 @@
-import Link from 'next/link';import {ArrowRight,Check,ShieldCheck,Sparkles} from 'lucide-react';
-const plans=[{name:'Starter',price:'R0',intro:'For anyone getting started.',features:['Shareable payment links','Easy QR payment requests','Verified test transaction history','Simple sales overview'],current:true},{name:'Growth',price:'R49',intro:'For the business finding its stride.',features:['Everything in Starter','Downloadable reports','Advanced sales insights','More money-management tools']},{name:'Business',price:'R99',intro:'For teams with bigger plans.',features:['Everything in Growth','Team access (planned)','Extra reporting (planned)','Priority help (planned)']}];
-export default function Pricing(){return <main className="lp-pricing-page"><section className="lp-pricing-hero"><div className="lp-eyebrow">FAIR PRICES. BIG POSSIBILITIES.</div><h1>Grow your business.<br/><span>Not your monthly bills.</span></h1><p>Get started at R0. Choose more tools when you’re ready — not before.</p></section><div className="lp-pricing-grid">{plans.map(p=><article key={p.name} className={'lp-card lp-pricing-card '+(p.current?'lp-pricing-featured':'')}><div className="lp-chip">{p.current?'FREE FOREVER TO START':'PLANNED UPGRADE'}</div><h2>{p.name}</h2><p>{p.intro}</p><div className="lp-pricing-cost">{p.price}<span>/month</span></div><Link href="/register" className={'lp-primary lp-full '+(!p.current?'lp-pricing-alt':'')}>{p.current?'Get started for free':'Join the platform'}<ArrowRight size={18}/></Link><div className="lp-pricing-list">{p.features.map(feature=><div key={feature}><Check size={17}/>{feature}</div>)}</div></article>)}</div><div className="lp-pricing-note"><ShieldCheck size={20}/><p>LocalPay subscriptions are separate from Paystack processing fees. This is currently a hackathon test-mode platform — paid subscriptions and real fund transfers have not been enabled.</p></div><section className="lp-pricing-faq"><div className="lp-eyebrow">A FEW QUICK ANSWERS</div><h2>Questions? We’ve got you.</h2><article><strong>Do I need to buy a card machine?</strong><p>No. A link or QR code is enough to demonstrate the payment process.</p></article><article><strong>Are test payments real money?</strong><p>No. Every payment in this version uses Paystack’s test environment.</p></article><article><strong>Is there a fee on each payment?</strong><p>Actual payment-provider processing fees apply in live mode. We’ll show them clearly before any real launch.</p></article></section></main>;}
+import Link from 'next/link';
+import { ArrowRight, Check, ShieldCheck, Store, UtensilsCrossed, ShoppingBasket, QrCode, ReceiptText } from 'lucide-react';
+const features=[
+ 'Create payment links for any sale',
+ 'Display QR codes at your counter or stall',
+ 'Check verified test transactions',
+ 'See daily sales and payment history',
+ 'Download transaction reports',
+ 'Manage your shop from a phone'
+];
+export default function Pricing(){
+ return <main className="lp-pricing-page">
+  <section className="lp-pricing-hero">
+   <div className="lp-eyebrow">ONE SIMPLE SUBSCRIPTION · BUILT FOR LOCAL BUSINESS</div>
+   <h1>Affordable payment tools for <span>your everyday hustle.</span></h1>
+   <p>Whether you run a spaza shop, sell meals at a food stall, manage a small restaurant or own a local food shop, LocalPay keeps payments simple.</p>
+  </section>
+  <div className="lp-pricing-grid lp-subscription-grid">
+   <article className="lp-card lp-pricing-card lp-pricing-featured">
+    <span className="lp-chip">PROPOSED MONTHLY SUBSCRIPTION</span>
+    <h2>LocalPay Subscription</h2>
+    <p>Everything a small local business needs, in one easy-to-understand package.</p>
+    <div className="lp-pricing-cost">R29<span>/month · proposed</span></div>
+    <p>Built for traders who need to keep costs predictable. Provider transaction fees are additional and will be disclosed before any live launch.</p>
+    <Link href="/register" className="lp-primary lp-full">Create your test account <ArrowRight size={18}/></Link>
+    <div className="lp-pricing-list">{features.map(feature=><div key={feature}><Check size={17}/>{feature}</div>)}</div>
+   </article>
+   <aside className="lp-card lp-subscription-story">
+    <span className="lp-eyebrow">MADE FOR THE BUSINESSES AROUND US</span>
+    <h2>One subscription. Many ways to earn.</h2>
+    <div className="lp-subscription-type"><Store size={20}/><div><strong>Spaza shops</strong><span>Let customers scan a QR code at the till.</span></div></div>
+    <div className="lp-subscription-type"><UtensilsCrossed size={20}/><div><strong>Small restaurants & takeaways</strong><span>Share payment links for meals and orders.</span></div></div>
+    <div className="lp-subscription-type"><ShoppingBasket size={20}/><div><strong>Local food shops & informal traders</strong><span>Keep payment records without complicated systems.</span></div></div>
+    <div className="lp-subscription-type"><ReceiptText size={20}/><div><strong>Market stalls & street-food sellers</strong><span>Show a QR code from a phone or printed sign.</span></div></div>
+   </aside>
+  </div>
+  <div className="lp-pricing-note"><ShieldCheck size={20}/><p><strong>Hackathon test mode:</strong> The R29/month subscription is a proposed business model, not a charge being collected today. Subscription billing and live card payments are not enabled. Creating a test account does not start a paid subscription.</p></div>
+  <section className="lp-pricing-faq"><div className="lp-eyebrow">STRAIGHT ANSWERS</div><h2>Questions from local traders</h2>
+   <article><strong>Will I be charged R29 when I sign up?</strong><p>No. This is a sandbox prototype. R29/month is the proposed price for a future live subscription, not an active charge.</p></article>
+   <article><strong>Do I need a card machine?</strong><p>No. LocalPay demonstrates QR and payment-link checkouts that can be shared or displayed using a phone.</p></article>
+   <article><strong>Are payment-provider fees included?</strong><p>No. Any future live provider processing fees would be additional and shown clearly before launch.</p></article>
+  </section>
+ </main>;
+}
