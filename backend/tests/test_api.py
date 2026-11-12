@@ -78,16 +78,27 @@ def test_live_key_rejected(monkeypatch):
         pass
 
 
-def test_cors_allows_localpay_vercel_preview():
+def test_cors_allows_configured_local_origin():
     response = app.test_client().options(
         "/api/merchant/me",
         headers={
-            "Origin": "https://local-pay-micro-ok0e4wu82-low-cost.vercel.app",
+            "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "GET",
             "Access-Control-Request-Headers": "authorization",
         },
     )
-    assert response.headers.get("Access-Control-Allow-Origin") == "https://local-pay-micro-ok0e4wu82-low-cost.vercel.app"
+    assert response.headers.get("Access-Control-Allow-Origin") == "http://localhost:3000"
+
+
+def test_cors_rejects_unapproved_preview():
+    response = app.test_client().options(
+        "/api/merchant/me",
+        headers={
+            "Origin": "https://local-pay-micro-random-preview.vercel.app",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert not response.headers.get("Access-Control-Allow-Origin")
 
 
 def test_cors_blocks_unrelated_website():
@@ -115,3 +126,24 @@ def test_bootstrap_is_private_and_unknown_view_is_rejected_before_data_load():
     client = app.test_client()
     assert client.get("/api/dashboard/bootstrap?view=overview").status_code == 401
     assert client.get("/api/dashboard/bootstrap?view=subscription").status_code == 401
+
+
+def test_security_response_headers():
+    response = app.test_client().get("/api/health")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_malformed_json_does_not_disable_limits():
+    response = app.test_client().post(
+        "/api/payments/initialize",
+        data=b"x" * (129 * 1024),
+        content_type="application/json",
+    )
+    assert response.status_code == 413
+
+
+def test_no_public_upgrade_without_auth():
+    response = app.test_client().post("/api/merchant/upgrade-request", json={"plan":"pro_plus"})
+    assert response.status_code == 401
