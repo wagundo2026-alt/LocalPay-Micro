@@ -257,7 +257,7 @@ export default function MerchantWorkspace({view}: {view:View}){
       <div className="lp-eyebrow">ONE STRAIGHTFORWARD SUBSCRIPTION</div>
       <span className="lp-chip">PROPOSED · NOT YET BILLING</span>
       <h2>LocalPay Subscription</h2>
-      <p className="lp-plan-price">R29<small>/month · proposed</small></p>
+      <p className="lp-plan-price">R49<small>/month · proposed</small></p>
       <p>For spaza shop owners, small restaurants, takeaway sellers, local food stores and informal traders who want simple digital payment tools.</p>
       <div className="lp-plan-features">
        {['Payment links and printable QR codes','Transaction history and test receipts','Sales overview and downloadable reports','Manage your business from a phone'].map(f=><div key={f}><Check size={16}/>{f}</div>)}
