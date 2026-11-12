@@ -161,6 +161,70 @@ def merchant_update():
         return reply(status=400, error="No editable fields")
     return reply(get_db().table("merchants").update(updates).eq("id", request.merchant["id"]).execute().data[0])
 
+# Proposed merchant plans. Limits count Paystack checkout attempts per UTC calendar month.
+# Plan upgrades are never activated from an unverified browser request.
+PLANS = {
+    "basic": {"name": "Basic", "price_cents": 4900, "monthly_limit": 200},
+    "pro": {"name": "Pro", "price_cents": 9900, "monthly_limit": 1000},
+    "pro_plus": {"name": "Pro Plus", "price_cents": 19900, "monthly_limit": 5000}
+}
+
+def merchant_plan(db, merchant_id):
+    rows = db.table("merchant_plan_entitlements").select("plan").eq("merchant_id", merchant_id).limit(1).execute().data
+    plan = rows[0]["plan"] if rows else "basic"
+    return plan if plan in PLANS else "basic"
+
+def month_window_utc():
+    now = datetime.now(timezone.utc)
+    start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    end = datetime(now.year + (now.month == 12), now.month % 12 + 1, 1, tzinfo=timezone.utc)
+    return start.isoformat(), end.isoformat()
+
+@app.get("/api/merchant/plan")
+@requires_merchant
+def my_plan():
+    db = get_db()
+    merchant_id = request.merchant["id"]
+    key = merchant_plan(db, merchant_id)
+    start, end = month_window_utc()
+    # Exact count from server, never a client-supplied balance.
+    query = (db.table("transactions").select("id", count="exact")
+             .eq("merchant_id", merchant_id).gte("created_at", start).lt("created_at", end))
+    result = query.limit(1).execute()
+    used = int(result.count or 0)
+    pending = (db.table("plan_upgrade_requests").select("requested_plan,created_at")
+               .eq("merchant_id", merchant_id).eq("status","pending").limit(1).execute().data)
+    return reply({"plan": key, "name": PLANS[key]["name"],
+                  "price_cents": PLANS[key]["price_cents"],
+                  "monthly_limit": PLANS[key]["monthly_limit"],
+                  "used": used, "remaining": max(0, PLANS[key]["monthly_limit"] - used),
+                  "renewal_period": "UTC calendar month",
+                  "next_reset": end,
+                  "upgrade_request": pending[0] if pending else None,
+                  "billing_enabled": False, "mode": "PAYSTACK_TEST"})
+
+@app.post("/api/merchant/upgrade-request")
+@requires_merchant
+@limiter.limit("5 per hour")
+def request_plan_upgrade():
+    body = request.get_json(silent=True) or {}
+    requested = body.get("plan")
+    current = merchant_plan(get_db(), request.merchant["id"])
+    ranks = {"basic":0,"pro":1,"pro_plus":2}
+    if requested not in ("pro","pro_plus") or ranks[requested] <= ranks[current]:
+        return reply(status=400, error="Choose a higher plan than your current plan.")
+    db = get_db()
+    existing = (db.table("plan_upgrade_requests").select("requested_plan")
+                .eq("merchant_id", request.merchant["id"]).eq("status","pending").limit(1).execute().data)
+    if existing:
+        return reply(status=409, error="You already have a pending upgrade request. No payment has been charged.")
+    db.table("plan_upgrade_requests").insert({
+        "merchant_id": request.merchant["id"], "requested_plan": requested,
+        "status": "pending"
+    }).execute()
+    return reply({"requested_plan": requested, "status": "pending",
+                  "message": "Upgrade request received. Your plan remains unchanged until approved and activated. No charge was made."}, 201)
+
 @app.post("/api/payment-links")
 @requires_merchant
 def new_link():
@@ -222,11 +286,18 @@ def initialize_payment():
     if not origin.startswith("https://") or "/" in origin.removeprefix("https://"):
         return reply(status=503, error="Configure FRONTEND_URL with your Vercel HTTPS origin")
     reference = "LPM-" + uuid.uuid4().hex
-    db.table("transactions").insert({
-        "merchant_id": link["merchant_id"], "payment_link_id": link["id"],
-        "reference": reference, "amount_cents": int(link["amount_cents"]),
-        "status": "pending", "provider": "paystack"
-    }).execute()
+    # Atomically reserve one checkout attempt in Postgres, with a per-merchant lock.
+    # A browser cannot change its own plan, and concurrent checkouts cannot evade limits.
+    quota = db.rpc("localpay_create_checkout_attempt", {
+        "p_merchant_id": link["merchant_id"], "p_payment_link_id": link["id"],
+        "p_reference": reference, "p_amount_cents": int(link["amount_cents"])
+    }).execute().data
+    if not quota or not quota.get("allowed"):
+        return reply(status=429, error=(
+            "Monthly checkout limit reached on your " +
+            str((quota or {}).get("plan", "basic")).replace("_", " ").title() +
+            " plan. Ask the merchant to request a plan upgrade before starting new checkouts."
+        ))
     try:
         redirect = paystack_initialize(reference, int(link["amount_cents"]), email,
                                        origin + "/payment/success?reference=" + reference)
@@ -339,11 +410,10 @@ def receipt(reference):
 @app.get("/api/subscriptions")
 @requires_user
 def subscriptions():
-    return reply([{"name": "LocalPay Subscription", "price_cents": 4900,
-                   "currency": "ZAR", "billing_interval": "month",
+    return reply([{"id": key, **value, "currency": "ZAR", "billing_interval": "month",
                    "billing_enabled": False, "proposed": True,
-                   "target_businesses": ["Spaza shops", "Small restaurants",
-                                         "Local food shops", "Informal traders"]}])
+                   "usage_metric": "monthly Paystack checkout attempts"}
+                  for key, value in PLANS.items()])
 
 @app.post("/api/webhooks/payments")
 @limiter.limit("120 per minute")
