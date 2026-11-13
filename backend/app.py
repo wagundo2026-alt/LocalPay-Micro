@@ -551,9 +551,23 @@ def payment_verify(reference):
 @app.get("/api/transactions")
 @requires_merchant
 def transactions():
-    limit = 10 if merchant_plan(get_db(), request.merchant["id"]) == "starter" else 100
-    return reply(get_db().table("transactions").select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email").eq("merchant_id", request.merchant["id"])
-                 .order("created_at", desc=True).limit(limit).execute().data)
+    plan = merchant_plan(get_db(), request.merchant["id"])
+    if plan == "starter":
+        offset, limit = 0, 10
+    else:
+        try:
+            offset = int(request.args.get("offset", "0"))
+        except ValueError:
+            return reply(status=400, error="Invalid transaction page.")
+        if offset < 0 or offset > 100000:
+            return reply(status=400, error="Invalid transaction page.")
+        limit = 100
+    rows=(get_db().table("transactions")
+          .select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email")
+          .eq("merchant_id", request.merchant["id"])
+          .order("created_at", desc=True).order("id", desc=True)
+          .range(offset,offset+limit-1).execute().data)
+    return reply(rows)
 
 @app.get("/api/dashboard/summary")
 @requires_merchant
