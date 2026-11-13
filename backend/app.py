@@ -551,12 +551,15 @@ def payment_verify(reference):
 @app.get("/api/transactions")
 @requires_merchant
 def transactions():
+    limit = 10 if merchant_plan(get_db(), request.merchant["id"]) == "starter" else 100
     return reply(get_db().table("transactions").select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email").eq("merchant_id", request.merchant["id"])
-                 .order("created_at", desc=True).limit(100).execute().data)
+                 .order("created_at", desc=True).limit(limit).execute().data)
 
 @app.get("/api/dashboard/summary")
 @requires_merchant
 def dashboard_summary():
+    if merchant_plan(get_db(), request.merchant["id"]) == "starter":
+        return reply(status=403, error="Sales summaries require Basic, Pro or Pro Plus.")
     rows = get_db().table("transactions").select("amount_cents,status").eq("merchant_id", request.merchant["id"]).execute().data
     paid = [r for r in rows if r["status"] == "successful"]
     return reply({"gross_cents": sum(int(r["amount_cents"]) for r in paid),
