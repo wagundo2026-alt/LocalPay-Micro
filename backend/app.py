@@ -156,7 +156,10 @@ def dashboard_bootstrap():
     origin = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
     if not (origin.startswith("https://") and "/" not in origin.removeprefix("https://")):
         origin = ""
-    payload = {"merchant": merchant, "view": view, "checkout_origin": origin}
+    plan_key = merchant_plan(db, mid)
+    # The server, not the browser, decides which paid features can be read.
+    payload = {"merchant": merchant, "view": view, "checkout_origin": origin,
+               "plan_key": plan_key}
 
     # Independent reads can run concurrently. Previously the overview waited for
     # links, transaction list and sales aggregation one after the other.
@@ -174,7 +177,7 @@ def dashboard_bootstrap():
                   .select("id,reference,amount_cents,status,provider,created_at,payer_name,payer_email", count="exact")
                   .eq("merchant_id", mid).order("created_at", desc=True)
                   .limit(100).execute())
-        return result.data, int(result.count or 0)
+        return (result.data[:10] if plan_key == "starter" else result.data), int(result.count or 0)
 
     def read_sales():
         # This query deliberately keeps the full merchant history to prevent
@@ -185,7 +188,7 @@ def dashboard_bootstrap():
 
     wants_links = view in {"overview", "payments", "qr-code"}
     wants_transactions = view in {"overview", "transactions"}
-    wants_sales = view in {"overview", "analytics"}
+    wants_sales = view in {"overview", "analytics"} and plan_key != "starter"
 
     if wants_links or wants_transactions or wants_sales:
         with ThreadPoolExecutor(max_workers=3) as pool:
@@ -214,6 +217,9 @@ def dashboard_bootstrap():
                     "daily": [{"date": day, **entry} for day, entry in sorted(daily.items())],
                     "mode": "DEMO"
                 }
+
+    if view == "analytics" and plan_key == "starter":
+        payload["feature_locked"] = "Sales summaries and reports start on Basic. Upgrade to see your sales performance."
 
     if view == "subscription":
         key = merchant_plan(db,mid)
@@ -561,6 +567,8 @@ def dashboard_summary():
 @app.get("/api/dashboard/analytics")
 @requires_merchant
 def dashboard_analytics():
+    if merchant_plan(get_db(), request.merchant["id"]) == "starter":
+        return reply(status=403, error="Sales insights require Basic, Pro or Pro Plus.")
     rows = get_db().table("transactions").select("amount_cents,status,created_at").eq("merchant_id", request.merchant["id"]).execute().data
     daily = defaultdict(lambda: {"total_cents": 0, "count": 0})
     for row in rows:
@@ -573,6 +581,8 @@ def dashboard_analytics():
 @app.get("/api/transactions/export.csv")
 @requires_merchant
 def transactions_csv():
+    if merchant_plan(get_db(), request.merchant["id"]) == "starter":
+        return reply(status=403, error="Downloadable reports require Basic, Pro or Pro Plus.")
     rows = get_db().table("transactions").select("reference,created_at,amount_cents,currency,status,provider").eq("merchant_id", request.merchant["id"]).order("created_at", desc=True).limit(5000).execute().data
     stream = io.StringIO()
     writer = csv.writer(stream)
