@@ -581,6 +581,80 @@ def dashboard_analytics():
             daily[day]["count"] += 1
     return reply({"daily": [{"date": day, **v} for day, v in sorted(daily.items())], "mode": "DEMO"})
 
+# Business tools: authorised plan entitlements are checked on every request.
+# Financial amounts below remain sandbox bookkeeping, never bank-settled balances.
+def require_business_tier(minimum):
+    rank = {"starter": 0, "basic": 1, "pro": 2, "pro_plus": 3}
+    key = merchant_plan(get_db(), request.merchant["id"])
+    return rank[key] >= rank[minimum]
+
+@app.route("/api/merchant/expenses", methods=["GET", "POST"])
+@requires_merchant
+@limiter.limit("60 per minute")
+def merchant_expenses():
+    if not require_business_tier("pro"):
+        return reply(status=403, error="Expense tracking requires an activated Pro or Pro Plus plan.")
+    db, mid = get_db(), request.merchant["id"]
+    if request.method == "GET":
+        rows = (db.table("merchant_expenses")
+                .select("id,label,amount_cents,expense_date,created_at")
+                .eq("merchant_id", mid).order("expense_date",desc=True).limit(500).execute().data)
+        return reply(rows)
+    data = request.get_json(silent=True) or {}
+    label, amount = str(data.get("label") or "").strip(), data.get("amount_cents")
+    if not (2 <= len(label) <= 120) or isinstance(amount,bool) or not isinstance(amount,int) or not 1 <= amount <= 100000000:
+        return reply(status=400, error="Enter a valid expense description and amount.")
+    row = db.table("merchant_expenses").insert({
+        "merchant_id":mid,"label":label,"amount_cents":amount
+    }).execute().data[0]
+    return reply(row,201)
+
+@app.route("/api/merchant/inventory", methods=["GET", "POST"])
+@requires_merchant
+@limiter.limit("60 per minute")
+def merchant_inventory():
+    if not require_business_tier("pro_plus"):
+        return reply(status=403, error="Stock monitoring requires an activated Pro Plus plan.")
+    db, mid = get_db(), request.merchant["id"]
+    if request.method == "GET":
+        rows = (db.table("merchant_inventory")
+                .select("id,name,quantity,low_stock_threshold,created_at")
+                .eq("merchant_id",mid).order("name").limit(500).execute().data)
+        return reply(rows)
+    data = request.get_json(silent=True) or {}
+    name, quantity, threshold = str(data.get("name") or "").strip(), data.get("quantity"), data.get("low_stock_threshold",5)
+    if not (2 <= len(name) <= 120) or any(isinstance(v,bool) or not isinstance(v,int) or v < 0 or v > 1000000 for v in (quantity,threshold)):
+        return reply(status=400,error="Enter a valid stock item, quantity and low-stock alert threshold.")
+    existing = (db.table("merchant_inventory").select("id").eq("merchant_id",mid).eq("name",name).limit(1).execute().data)
+    if existing:
+        return reply(status=409,error="This stock item already exists. Update its quantity instead.")
+    row=db.table("merchant_inventory").insert({
+        "merchant_id":mid,"name":name,"quantity":quantity,"low_stock_threshold":threshold
+    }).execute().data[0]
+    return reply(row,201)
+
+@app.patch("/api/merchant/inventory/<item_id>")
+@requires_merchant
+@limiter.limit("60 per minute")
+def update_merchant_inventory(item_id):
+    if not require_business_tier("pro_plus"):
+        return reply(status=403,error="Stock monitoring requires an activated Pro Plus plan.")
+    if not re.fullmatch(r"[0-9a-fA-F-]{36}",item_id):
+        return reply(status=400,error="Invalid stock item.")
+    data=request.get_json(silent=True) or {}
+    updates={}
+    for field in ("quantity","low_stock_threshold"):
+        if field in data:
+            v=data[field]
+            if isinstance(v,bool) or not isinstance(v,int) or not 0<=v<=1000000:
+                return reply(status=400,error="Enter a valid stock quantity.")
+            updates[field]=v
+    if not updates:
+        return reply(status=400,error="No stock changes supplied.")
+    rows=(get_db().table("merchant_inventory").update(updates)
+          .eq("merchant_id",request.merchant["id"]).eq("id",item_id).execute().data)
+    return reply(rows[0]) if rows else reply(status=404,error="Stock item not found.")
+
 @app.get("/api/transactions/export.csv")
 @requires_merchant
 def transactions_csv():
